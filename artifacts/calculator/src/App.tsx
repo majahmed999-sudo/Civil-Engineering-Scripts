@@ -3,6 +3,9 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 interface FormData {
+  projectName: string;
+  engineerName: string;
+  clientName: string;
   length: string;
   width: string;
   depth: string;
@@ -23,6 +26,9 @@ interface Results {
 }
 
 const initialForm: FormData = {
+  projectName: "",
+  engineerName: "",
+  clientName: "",
   length: "",
   width: "",
   depth: "",
@@ -144,26 +150,43 @@ export default function App() {
       });
 
       pdf.setFillColor(37, 99, 235);
-      pdf.rect(0, 0, pageWidth, 28, "F");
+      pdf.rect(0, 0, pageWidth, 32, "F");
 
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Foundation Quantity Calculator", pageWidth / 2, 12, { align: "center" });
+      const headerTitle = form.projectName
+        ? form.projectName
+        : "Foundation Quantity Calculator";
+      pdf.text(headerTitle, pageWidth / 2, 13, { align: "center" });
 
       pdf.setFontSize(9);
       pdf.setFont("helvetica", "normal");
-      pdf.text(`Concrete & Reinforcement Steel`, pageWidth / 2, 20, { align: "center" });
+      pdf.text("Concrete & Reinforcement Steel — Quantity Report", pageWidth / 2, 22, { align: "center" });
 
       pdf.setTextColor(100, 116, 139);
       pdf.setFontSize(8);
-      pdf.text(dateStr, pageWidth - margin, 34, { align: "right" });
+      pdf.text(dateStr, pageWidth - margin, 40, { align: "right" });
+
+      const infoY = 40;
+      if (form.engineerName || form.clientName) {
+        pdf.setTextColor(51, 65, 85);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        if (form.engineerName) {
+          pdf.text(`Engineer: ${form.engineerName}`, margin, infoY);
+        }
+        if (form.clientName) {
+          const clientX = form.engineerName ? pageWidth / 2 : margin;
+          pdf.text(`Client: ${form.clientName}`, clientX, infoY);
+        }
+      }
 
       pdf.setDrawColor(226, 232, 240);
       pdf.setLineWidth(0.3);
-      pdf.line(margin, 37, pageWidth - margin, 37);
+      pdf.line(margin, 45, pageWidth - margin, 45);
 
-      const startY = 42;
+      const startY = 50;
       const availableHeight = pageHeight - startY - margin;
       const finalImgHeight = Math.min(imgHeight, availableHeight);
 
@@ -198,6 +221,56 @@ export default function App() {
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <form onSubmit={handleSubmit}>
             <div className="p-6 space-y-6">
+              <section>
+                <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </span>
+                  بيانات المشروع والتوثيق
+                </h2>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">اسم المشروع <span className="text-slate-400">(اختياري)</span></label>
+                    <input
+                      type="text"
+                      name="projectName"
+                      value={form.projectName}
+                      onChange={handleChange}
+                      placeholder="مثال: مشروع فلل الريان — قواعد الطابق الأرضي"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">اسم المهندس <span className="text-slate-400">(اختياري)</span></label>
+                      <input
+                        type="text"
+                        name="engineerName"
+                        value={form.engineerName}
+                        onChange={handleChange}
+                        placeholder="م. أحمد الشمري"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">اسم العميل <span className="text-slate-400">(اختياري)</span></label>
+                      <input
+                        type="text"
+                        name="clientName"
+                        value={form.clientName}
+                        onChange={handleChange}
+                        placeholder="المقاول / صاحب العمل"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="border-t border-slate-100" />
+
               <section>
                 <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-4 flex items-center gap-2">
                   <span className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs">1</span>
@@ -372,11 +445,29 @@ export default function App() {
               </div>
 
               <div ref={resultsRef} className="space-y-3 bg-white rounded-xl p-4">
-                <div className="text-center border-b border-slate-100 pb-3 mb-4">
-                  <h3 className="font-bold text-slate-700 text-base">تقرير حاسبة كميات القواعد</h3>
-                  <p className="text-slate-400 text-xs mt-1">
+                <div className="border-b border-slate-100 pb-3 mb-4">
+                  <h3 className="font-bold text-slate-700 text-base text-center">
+                    {form.projectName || "تقرير حاسبة كميات القواعد"}
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1 text-center">
                     {new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })}
                   </p>
+                  {(form.engineerName || form.clientName) && (
+                    <div className="flex justify-between mt-3 pt-3 border-t border-slate-100">
+                      {form.engineerName && (
+                        <div className="text-xs">
+                          <span className="text-slate-400">المهندس: </span>
+                          <span className="font-semibold text-slate-700">{form.engineerName}</span>
+                        </div>
+                      )}
+                      {form.clientName && (
+                        <div className="text-xs">
+                          <span className="text-slate-400">العميل: </span>
+                          <span className="font-semibold text-slate-700">{form.clientName}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 text-center mb-4">
