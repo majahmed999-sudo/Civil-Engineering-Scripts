@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-type TabId = "footings" | "columns" | "beams";
+type TabId = "footings" | "columns" | "beams" | "slabs";
 
 interface ElementType {
   id: string;
@@ -21,6 +21,7 @@ interface ProjectInfo {
   footingSteelRatio: string;
   columnSteelRatio: string;
   beamSteelRatio: string;
+  slabSteelRatio: string;
   steelPricePerTon: string;
 }
 
@@ -50,6 +51,7 @@ interface FullSummary {
   footings: SectionSummary;
   columns: SectionSummary;
   beams: SectionSummary;
+  slabs: SectionSummary;
   totalConcreteVolume: number;
   totalSteelKg: number;
   totalSteelTons: number;
@@ -75,6 +77,7 @@ const initialProject: ProjectInfo = {
   footingSteelRatio: "80",
   columnSteelRatio: "120",
   beamSteelRatio: "150",
+  slabSteelRatio: "90",
   steelPricePerTon: "",
 };
 
@@ -111,20 +114,21 @@ function computeSection(elements: ElementType[], ratio: number, concretePrice: n
   return { elements: results, totalVolume, totalSteelKg, totalSteelTons, concreteCost, steelCost, total: concreteCost + steelCost };
 }
 
-function computeFull(footings: ElementType[], columns: ElementType[], beams: ElementType[], p: ProjectInfo): FullSummary {
+function computeFull(footings: ElementType[], columns: ElementType[], beams: ElementType[], slabs: ElementType[], p: ProjectInfo): FullSummary {
   const cp = parseFloat(p.concretePricePerM3);
   const sp = parseFloat(p.steelPricePerTon);
   const f = computeSection(footings, parseFloat(p.footingSteelRatio || "80"), cp, sp);
   const c = computeSection(columns, parseFloat(p.columnSteelRatio || "120"), cp, sp);
   const b = computeSection(beams, parseFloat(p.beamSteelRatio || "150"), cp, sp);
+  const s = computeSection(slabs, parseFloat(p.slabSteelRatio || "90"), cp, sp);
   return {
-    footings: f, columns: c, beams: b,
-    totalConcreteVolume: f.totalVolume + c.totalVolume + b.totalVolume,
-    totalSteelKg: f.totalSteelKg + c.totalSteelKg + b.totalSteelKg,
-    totalSteelTons: f.totalSteelTons + c.totalSteelTons + b.totalSteelTons,
-    totalConcreteCost: f.concreteCost + c.concreteCost + b.concreteCost,
-    totalSteelCost: f.steelCost + c.steelCost + b.steelCost,
-    grandTotal: f.total + c.total + b.total,
+    footings: f, columns: c, beams: b, slabs: s,
+    totalConcreteVolume: f.totalVolume + c.totalVolume + b.totalVolume + s.totalVolume,
+    totalSteelKg: f.totalSteelKg + c.totalSteelKg + b.totalSteelKg + s.totalSteelKg,
+    totalSteelTons: f.totalSteelTons + c.totalSteelTons + b.totalSteelTons + s.totalSteelTons,
+    totalConcreteCost: f.concreteCost + c.concreteCost + b.concreteCost + s.concreteCost,
+    totalSteelCost: f.steelCost + c.steelCost + b.steelCost + s.steelCost,
+    grandTotal: f.total + c.total + b.total + s.total,
   };
 }
 
@@ -133,9 +137,10 @@ function fmt(n: number, decimals = 2) {
 }
 
 const TABS: { id: TabId; label: string; icon: string; dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string }[] = [
-  { id: "footings", label: "القواعد", icon: "🟦", dim1Label: "الطول (م)", dim2Label: "العرض (م)", dim3Label: "السمك (م)", defaultLabel: "F" },
-  { id: "columns", label: "الأعمدة", icon: "🟧", dim1Label: "العرض (م)", dim2Label: "العمق (م)", dim3Label: "الارتفاع (م)", defaultLabel: "C" },
-  { id: "beams", label: "الكمرات", icon: "🟩", dim1Label: "العرض (م)", dim2Label: "العمق (م)", dim3Label: "الطول (م)", defaultLabel: "B" },
+  { id: "footings", label: "القواعد",  icon: "🟦", dim1Label: "الطول (م)", dim2Label: "العرض (م)",  dim3Label: "السمك (م)",      defaultLabel: "F" },
+  { id: "columns",  label: "الأعمدة", icon: "🟧", dim1Label: "العرض (م)", dim2Label: "العمق (م)",  dim3Label: "الارتفاع (م)", defaultLabel: "C" },
+  { id: "beams",    label: "الكمرات", icon: "🟩", dim1Label: "العرض (م)", dim2Label: "العمق (م)",  dim3Label: "الطول (م)",      defaultLabel: "B" },
+  { id: "slabs",    label: "البلاطات",icon: "🟪", dim1Label: "الطول (م)", dim2Label: "العرض (م)",  dim3Label: "السمك (م)",      defaultLabel: "S" },
 ];
 
 function ElementCard({ element, idx, config, tabCount, onChange, onRemove }: {
@@ -238,6 +243,7 @@ export default function App() {
   const [footings, setFootings] = useState<ElementType[]>([newElement()]);
   const [columns, setColumns] = useState<ElementType[]>([newElement()]);
   const [beams, setBeams] = useState<ElementType[]>([newElement()]);
+  const [slabs, setSlabs] = useState<ElementType[]>([newElement()]);
   const [summary, setSummary] = useState<FullSummary | null>(null);
   const [exporting, setExporting] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -246,6 +252,7 @@ export default function App() {
     footings: [footings, setFootings],
     columns: [columns, setColumns],
     beams: [beams, setBeams],
+    slabs: [slabs, setSlabs],
   };
 
   function handleProjectChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -273,9 +280,9 @@ export default function App() {
 
   function handleCalculate(e: React.FormEvent) {
     e.preventDefault();
-    const hasData = [...footings, ...columns, ...beams].some(isElementValid);
+    const hasData = [...footings, ...columns, ...beams, ...slabs].some(isElementValid);
     if (hasData && isPricesValid(project)) {
-      setSummary(computeFull(footings, columns, beams, project));
+      setSummary(computeFull(footings, columns, beams, slabs, project));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     }
   }
@@ -285,6 +292,7 @@ export default function App() {
     setFootings([newElement()]);
     setColumns([newElement()]);
     setBeams([newElement()]);
+    setSlabs([newElement()]);
     setSummary(null);
     setActiveTab("footings");
   }
@@ -310,7 +318,7 @@ export default function App() {
       pdf.text(project.projectName || "Structural Quantity Report", pageWidth / 2, 13, { align: "center" });
       pdf.setFontSize(9);
       pdf.setFont("helvetica", "normal");
-      pdf.text("Foundations • Columns • Beams — Concrete & Steel Calculator", pageWidth / 2, 22, { align: "center" });
+      pdf.text("Foundations • Columns • Beams • Slabs — Structural Calculator", pageWidth / 2, 22, { align: "center" });
 
       const dateStr = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
       pdf.setTextColor(100, 116, 139);
@@ -346,7 +354,7 @@ export default function App() {
     }
   }
 
-  const canCalculate = [...footings, ...columns, ...beams].some(isElementValid) && isPricesValid(project);
+  const canCalculate = [...footings, ...columns, ...beams, ...slabs].some(isElementValid) && isPricesValid(project);
   const tabConfig = TABS.find((t) => t.id === activeTab)!;
   const [activeElements] = stateMap[activeTab];
 
@@ -440,6 +448,12 @@ export default function App() {
                 <label className="block text-xs font-medium text-slate-500 mb-1">حديد الكمرات (كجم/م³)</label>
                 <input type="number" name="beamSteelRatio" value={project.beamSteelRatio} onChange={handleProjectChange}
                   placeholder="150" min="1" step="1"
+                  className="w-full px-2 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">حديد البلاطات (كجم/م³)</label>
+                <input type="number" name="slabSteelRatio" value={project.slabSteelRatio} onChange={handleProjectChange}
+                  placeholder="90" min="1" step="1"
                   className="w-full px-2 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
               </div>
             </div>
