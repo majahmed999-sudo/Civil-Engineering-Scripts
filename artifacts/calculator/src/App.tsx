@@ -98,6 +98,7 @@ interface SavedProject {
   flatSlabs: ElementType[];
   waffleSlabs: ElementType[];
   mix?: MixDesign;
+  includeSteel?: boolean;
 }
 
 function lsLoad(): SavedProject[] {
@@ -230,8 +231,9 @@ function isElementValid(e: ElementType) {
   return parseFloat(e.dim1) > 0 && parseFloat(e.dim2) > 0 && parseFloat(e.dim3) > 0 && parseInt(e.quantity) > 0;
 }
 
-function isPricesValid(p: ProjectInfo) {
-  return parseFloat(p.concretePricePerM3) > 0 && parseFloat(p.steelPricePerTon) > 0;
+function isPricesValid(p: ProjectInfo, requireSteel = true) {
+  const concreteOk = parseFloat(p.concretePricePerM3) > 0;
+  return requireSteel ? concreteOk && parseFloat(p.steelPricePerTon) > 0 : concreteOk;
 }
 
 function computeSection(
@@ -562,6 +564,7 @@ export default function App() {
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const [mix, setMix] = useState<MixDesign>(initialMix);
+  const [includeSteel, setIncludeSteel] = useState(true);
 
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>(lsLoad);
   const [showPanel, setShowPanel] = useState(false);
@@ -633,7 +636,7 @@ export default function App() {
     const entry: SavedProject = {
       id: crypto.randomUUID(), name, savedAt: Date.now(),
       project, floors, footings, columns, beams,
-      solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, mix,
+      solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, mix, includeSteel,
     };
     const updated = [entry, ...savedProjects];
     lsSave(updated);
@@ -652,6 +655,7 @@ export default function App() {
     setFlatSlabs(sp.flatSlabs);
     setWaffleSlabs(sp.waffleSlabs);
     if (sp.mix) setMix(sp.mix);
+    if (sp.includeSteel !== undefined) setIncludeSteel(sp.includeSteel);
     setSummary(null);
     setActiveTab("footings");
     setSlabSubTab("solid");
@@ -692,8 +696,19 @@ export default function App() {
 
   function handleCalculate(e: React.FormEvent) {
     e.preventDefault();
-    if (allElements.some(isElementValid) && isPricesValid(project)) {
-      setSummary(computeFull(footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, floors, project));
+    if (allElements.some(isElementValid) && isPricesValid(project, includeSteel)) {
+      const calcProject = includeSteel ? project : {
+        ...project,
+        steelPricePerTon: "0",
+        footingSteelRatio: "0",
+        columnSteelRatio: "0",
+        beamSteelRatio: "0",
+        solidSlabSteelRatio: "0",
+        hollowSlabSteelRatio: "0",
+        flatSlabSteelRatio: "0",
+        waffleSlabSteelRatio: "0",
+      };
+      setSummary(computeFull(footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, floors, calcProject));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     }
   }
@@ -702,6 +717,7 @@ export default function App() {
     setProject(initialProject);
     setFloors(initialFloors);
     setMix(initialMix);
+    setIncludeSteel(true);
     setFootings([newElement()]);
     setColumns([newElement()]);
     setBeams([newElement()]);
@@ -1298,7 +1314,7 @@ export default function App() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">اسم المهندس <span className="text-slate-400">(اختياري)</span></label>
                   <input type="text" name="engineerName" value={project.engineerName} onChange={handleProjectChange}
-                    placeholder="م. أحمد الشمري"
+                    placeholder="م. محمد السالم"
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition" />
                 </div>
                 <div>
@@ -1353,42 +1369,59 @@ export default function App() {
 
           {/* Prices & Ratios */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-            <h2 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              أسعار المواد ومعدلات الحديد
-            </h2>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-blue-600 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                أسعار المواد ومعدلات الحديد
+              </h2>
+              {/* Steel toggle */}
+              <button type="button" onClick={() => setIncludeSteel((v) => !v)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition ${
+                  includeSteel
+                    ? "bg-slate-800 border-slate-800 text-white"
+                    : "bg-slate-50 border-slate-200 text-slate-500"
+                }`}>
+                <span className={`inline-block w-8 h-4 rounded-full relative transition-colors ${includeSteel ? "bg-blue-400" : "bg-slate-300"}`}>
+                  <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${includeSteel ? "right-0.5" : "left-0.5"}`} />
+                </span>
+                {includeSteel ? "حديد التسليح: مفعّل" : "خرسانة فقط"}
+              </button>
+            </div>
+            <div className={`grid gap-3 mb-4 ${includeSteel ? "grid-cols-2" : "grid-cols-1"}`}>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">سعر م³ الخرسانة</label>
                 <input type="number" name="concretePricePerM3" value={project.concretePricePerM3} onChange={handleProjectChange}
                   placeholder="0.00" min="0.01" step="0.01"
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">سعر طن الحديد</label>
-                <input type="number" name="steelPricePerTon" value={project.steelPricePerTon} onChange={handleProjectChange}
-                  placeholder="0.00" min="0.01" step="0.01"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
-              </div>
-            </div>
-            <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد العناصر الإنشائية (كجم/م³)</p>
-            <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl mb-3">
-              {[
-                { name: "footingSteelRatio", label: "القواعد",  placeholder: "80"  },
-                { name: "columnSteelRatio",  label: "الأعمدة", placeholder: "120" },
-                { name: "beamSteelRatio",    label: "الكمرات", placeholder: "150" },
-              ].map((f) => (
-                <div key={f.name}>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">{f.label}</label>
-                  <input type="number" name={f.name} value={project[f.name as keyof ProjectInfo]} onChange={handleProjectChange}
-                    placeholder={f.placeholder} min="1" step="1"
-                    className="w-full px-2 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
+              {includeSteel && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">سعر طن الحديد</label>
+                  <input type="number" name="steelPricePerTon" value={project.steelPricePerTon} onChange={handleProjectChange}
+                    placeholder="0.00" min="0.01" step="0.01"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
                 </div>
-              ))}
+              )}
             </div>
-            <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد البلاطات (كجم/م³)</p>
+            {includeSteel && <>
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد العناصر الإنشائية (كجم/م³)</p>
+              <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl mb-3">
+                {[
+                  { name: "footingSteelRatio", label: "القواعد",  placeholder: "80"  },
+                  { name: "columnSteelRatio",  label: "الأعمدة", placeholder: "120" },
+                  { name: "beamSteelRatio",    label: "الكمرات", placeholder: "150" },
+                ].map((f) => (
+                  <div key={f.name}>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{f.label}</label>
+                    <input type="number" name={f.name} value={project[f.name as keyof ProjectInfo]} onChange={handleProjectChange}
+                      placeholder={f.placeholder} min="1" step="1"
+                      className="w-full px-2 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد البلاطات (كجم/م³)</p>
             <div className="p-3 bg-purple-50/60 rounded-xl space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -1424,6 +1457,7 @@ export default function App() {
                 <p className="text-xs text-slate-400 mt-1.5">القيمة بين 0.1 و 1 — مثال: 0.55 تعني 55% خرسانة صلبة</p>
               </div>
             </div>
+            </>}
           </div>
 
           {/* Mix Design */}
