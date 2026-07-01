@@ -37,6 +37,31 @@ interface ProjectInfo {
   waffleConcreteRatio: string;
 }
 
+const LS_KEY = "structural-calc-projects";
+
+interface SavedProject {
+  id: string;
+  name: string;
+  savedAt: number;
+  project: ProjectInfo;
+  floors: Floor[];
+  footings: ElementType[];
+  columns: ElementType[];
+  beams: ElementType[];
+  solidSlabs: ElementType[];
+  hollowSlabs: ElementType[];
+  flatSlabs: ElementType[];
+  waffleSlabs: ElementType[];
+}
+
+function lsLoad(): SavedProject[] {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "[]") as SavedProject[]; } catch { return []; }
+}
+
+function lsSave(list: SavedProject[]) {
+  localStorage.setItem(LS_KEY, JSON.stringify(list));
+}
+
 interface ElementResult {
   id: string;
   label: string;
@@ -433,6 +458,11 @@ export default function App() {
   const [resultsTab, setResultsTab] = useState<"byType" | "byFloor">("byFloor");
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>(lsLoad);
+  const [showPanel, setShowPanel] = useState(false);
+  const [saveInput, setSaveInput] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
   type MainStateMap = Record<Exclude<TabId, "slabs">, [ElementType[], React.Dispatch<React.SetStateAction<ElementType[]>>]>;
   type SlabStateMap = Record<SlabSubType, [ElementType[], React.Dispatch<React.SetStateAction<ElementType[]>>]>;
 
@@ -491,6 +521,65 @@ export default function App() {
 
   function renameFloor(floorId: string, name: string) {
     setFloors((fs) => fs.map((f) => f.id === floorId ? { ...f, name } : f));
+  }
+
+  function saveProject() {
+    const name = saveInput.trim() || project.projectName.trim() || `مشروع ${savedProjects.length + 1}`;
+    const entry: SavedProject = {
+      id: crypto.randomUUID(), name, savedAt: Date.now(),
+      project, floors, footings, columns, beams,
+      solidSlabs, hollowSlabs, flatSlabs, waffleSlabs,
+    };
+    const updated = [entry, ...savedProjects];
+    lsSave(updated);
+    setSavedProjects(updated);
+    setSaveInput("");
+  }
+
+  function loadProject(sp: SavedProject) {
+    setProject(sp.project);
+    setFloors(sp.floors);
+    setFootings(sp.footings);
+    setColumns(sp.columns);
+    setBeams(sp.beams);
+    setSolidSlabs(sp.solidSlabs);
+    setHollowSlabs(sp.hollowSlabs);
+    setFlatSlabs(sp.flatSlabs);
+    setWaffleSlabs(sp.waffleSlabs);
+    setSummary(null);
+    setActiveTab("footings");
+    setSlabSubTab("solid");
+    setShowPanel(false);
+  }
+
+  function deleteProject(id: string) {
+    const updated = savedProjects.filter((sp) => sp.id !== id);
+    lsSave(updated);
+    setSavedProjects(updated);
+    setDeleteConfirm(null);
+  }
+
+  function exportProjectsJSON() {
+    const blob = new Blob([JSON.stringify(savedProjects, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "structural-projects.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importProjectsJSON(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target?.result as string) as SavedProject[];
+        const merged = [...imported, ...savedProjects].filter(
+          (p, i, arr) => arr.findIndex((q) => q.id === p.id) === i
+        );
+        lsSave(merged); setSavedProjects(merged);
+      } catch { /* ignore bad file */ }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   const allElements = [...footings, ...columns, ...beams, ...solidSlabs, ...hollowSlabs, ...flatSlabs, ...waffleSlabs];
@@ -587,6 +676,123 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex justify-center p-4" dir="rtl">
       <div className="w-full max-w-2xl py-8">
 
+        {/* Saved Projects Drawer */}
+        {showPanel && (
+          <div className="fixed inset-0 z-50 flex" dir="rtl">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowPanel(false)} />
+            {/* Panel */}
+            <div className="relative mr-auto w-full max-w-sm bg-white h-full shadow-2xl flex flex-col">
+              {/* Panel header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-blue-600">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4m4-4v4" />
+                  </svg>
+                  المشاريع المحفوظة
+                </h2>
+                <button onClick={() => setShowPanel(false)} className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Save current project */}
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">حفظ المشروع الحالي</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={saveInput}
+                    onChange={(e) => setSaveInput(e.target.value)}
+                    placeholder={project.projectName || "اسم المشروع..."}
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  />
+                  <button
+                    onClick={saveProject}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    حفظ
+                  </button>
+                </div>
+              </div>
+
+              {/* Project list */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+                {savedProjects.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
+                    <svg className="w-10 h-10 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    </svg>
+                    <p className="text-sm">لا توجد مشاريع محفوظة بعد</p>
+                  </div>
+                ) : savedProjects.map((sp) => (
+                  <div key={sp.id} className="bg-white border border-slate-200 rounded-xl p-3 hover:border-blue-300 transition">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{sp.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {new Date(sp.savedAt).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" })}
+                          {" — "}
+                          {sp.floors.length} {sp.floors.length === 1 ? "طابق" : "طوابق"}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => loadProject(sp)}
+                          className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
+                          title="تحميل">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                        </button>
+                        {deleteConfirm === sp.id ? (
+                          <div className="flex gap-1">
+                            <button onClick={() => deleteProject(sp.id)} className="px-2 py-1 text-xs bg-red-500 text-white rounded-lg font-semibold">حذف</button>
+                            <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 text-xs bg-slate-200 text-slate-700 rounded-lg">إلغاء</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirm(sp.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                            title="حذف">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Export / Import */}
+              <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex gap-2">
+                <button
+                  onClick={exportProjectsJSON}
+                  disabled={savedProjects.length === 0}
+                  className="flex-1 py-2 px-3 text-xs font-semibold bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 text-slate-600 rounded-lg transition disabled:opacity-40 flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  تصدير JSON
+                </button>
+                <label className="flex-1 py-2 px-3 text-xs font-semibold bg-white border border-slate-200 hover:border-green-300 hover:text-green-600 text-slate-600 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  استيراد JSON
+                  <input type="file" accept=".json" className="hidden" onChange={importProjectsJSON} />
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
@@ -597,6 +803,20 @@ export default function App() {
           </div>
           <h1 className="text-2xl font-bold text-slate-800">حاسبة الكميات الإنشائية</h1>
           <p className="text-slate-500 mt-1 text-sm">قواعد • أعمدة • كمرات • بلاطات</p>
+          <button
+            type="button"
+            onClick={() => { setShowPanel(true); setDeleteConfirm(null); }}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 text-slate-600 text-sm font-semibold rounded-xl shadow-sm transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4m4-4v4" />
+            </svg>
+            المشاريع المحفوظة
+            {savedProjects.length > 0 && (
+              <span className="w-5 h-5 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center font-bold">
+                {savedProjects.length}
+              </span>
+            )}
+          </button>
         </div>
 
         <form onSubmit={handleCalculate} className="space-y-4">
