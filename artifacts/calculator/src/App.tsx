@@ -162,6 +162,20 @@ interface FullSummary {
   grandTotal: number;
 }
 
+interface BOQItem {
+  no: number;
+  typeLabel: string;
+  typeCode: string;
+  floorName: string;
+  label: string;
+  dim1: number; dim2: number; dim3: number;
+  qty: number;
+  volEach: number;
+  volTotal: number;
+  steelKgTotal: number;
+  costTotal: number;
+}
+
 const DEFAULT_FLOOR_ID = "floor-ground";
 
 const newElement = (floorId: string = DEFAULT_FLOOR_ID): ElementType => ({
@@ -295,6 +309,49 @@ function computeFull(
     totalSteelCost:      all.reduce((s, x) => s + x.steelCost, 0),
     grandTotal:          all.reduce((s, x) => s + x.total, 0),
   };
+}
+
+const BOQ_META: { key: keyof FullSummary; typeLabel: string; typeCode: string }[] = [
+  { key: "footings",    typeLabel: "قواعد",         typeCode: "F"  },
+  { key: "columns",     typeLabel: "أعمدة",          typeCode: "C"  },
+  { key: "beams",       typeLabel: "كمرات",          typeCode: "B"  },
+  { key: "solidSlabs",  typeLabel: "بلاطة مصمتة",    typeCode: "SS" },
+  { key: "hollowSlabs", typeLabel: "بلاطة مجوفة",    typeCode: "HS" },
+  { key: "flatSlabs",   typeLabel: "بلاطة مسطحة",    typeCode: "FS" },
+  { key: "waffleSlabs", typeLabel: "بلاطة واف",      typeCode: "WS" },
+];
+
+function computeBOQ(
+  summary: FullSummary,
+  floors: Floor[],
+  rawArrays: ElementType[][],
+  cp: number,
+  sp: number,
+): BOQItem[] {
+  const floorMap = new Map(floors.map((f) => [f.id, f.name]));
+  const items: BOQItem[] = [];
+  let no = 1;
+  BOQ_META.forEach(({ key, typeLabel, typeCode }, si) => {
+    const section = summary[key] as SectionSummary;
+    const idToFloor = new Map(rawArrays[si].map((e) => [e.id, e.floorId]));
+    section.elements.forEach((er) => {
+      const floorId  = idToFloor.get(er.id) ?? "";
+      const floorName = floorMap.get(floorId) ?? "-";
+      const concreteCost = er.totalVolume * cp;
+      const steelCost    = (er.steelKg / 1000) * sp;
+      items.push({
+        no: no++, typeLabel, typeCode, floorName,
+        label: er.label || typeCode + no,
+        dim1: er.dim1, dim2: er.dim2, dim3: er.dim3,
+        qty: er.quantity,
+        volEach: er.volumeEach,
+        volTotal: er.totalVolume,
+        steelKgTotal: er.steelKg,
+        costTotal: concreteCost + steelCost,
+      });
+    });
+  });
+  return items;
 }
 
 function fmt(n: number, decimals = 2) {
@@ -501,7 +558,7 @@ export default function App() {
 
   const [summary, setSummary] = useState<FullSummary | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [resultsTab, setResultsTab] = useState<"byType" | "byFloor">("byFloor");
+  const [resultsTab, setResultsTab] = useState<"byType" | "byFloor" | "boq">("byFloor");
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const [mix, setMix] = useState<MixDesign>(initialMix);
@@ -895,6 +952,165 @@ export default function App() {
       });
 
       drawFooter(totalPages, totalPages);
+
+      // ── BOQ pages ─────────────────────────────────────────────────────────
+      const boqItems = computeBOQ(
+        summary, floors,
+        [footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs],
+        parseFloat(project.concretePricePerM3) || 0,
+        parseFloat(project.steelPricePerTon)   || 0,
+      );
+      if (boqItems.length > 0) {
+        // Column definitions [header, x-offset from margin, width, align]
+        type Col = { h: string; x: number; w: number; align: "left" | "center" | "right" };
+        const cols: Col[] = [
+          { h: "#",        x: 0,    w: 9,   align: "center" },
+          { h: "Type",     x: 9,    w: 18,  align: "left"   },
+          { h: "Floor",    x: 27,   w: 22,  align: "left"   },
+          { h: "Label",    x: 49,   w: 22,  align: "left"   },
+          { h: "L x W x H (m)",  x: 71, w: 38, align: "center" },
+          { h: "Qty",      x: 109,  w: 10,  align: "center" },
+          { h: "Vol/unit", x: 119,  w: 20,  align: "center" },
+          { h: "Total Vol",x: 139,  w: 22,  align: "center" },
+          { h: "Steel kg", x: 161,  w: 15,  align: "center" },
+          { h: "Cost",     x: 176,  w: 22,  align: "right"  },
+        ];
+
+        const BOQ_HEADER_H  = 28;
+        const BOQ_CONT_H    = 18;
+        const ROW_H         = 7;
+        const HEADER_ROW_H  = 9;
+        const FOOTER_H2     = 10;
+        const firstBodyY    = BOQ_HEADER_H + HEADER_ROW_H;
+        const contBodyY     = BOQ_CONT_H   + HEADER_ROW_H;
+        const firstRowsPerPage = Math.floor((pageHeight - firstBodyY - FOOTER_H2 - margin) / ROW_H);
+        const contRowsPerPage  = Math.floor((pageHeight - contBodyY  - FOOTER_H2 - margin) / ROW_H);
+
+        const boqTotalPages = Math.ceil(
+          boqItems.length <= firstRowsPerPage
+            ? 1
+            : 1 + Math.ceil((boqItems.length - firstRowsPerPage) / contRowsPerPage)
+        );
+
+        function drawBOQHeader(isFirstBOQ: boolean, pgLabel: string) {
+          const hh = isFirstBOQ ? BOQ_HEADER_H : BOQ_CONT_H;
+          pdf.setFillColor(22, 163, 74); // green-600
+          pdf.rect(0, 0, pageWidth, hh, "F");
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(isFirstBOQ ? 13 : 9); pdf.setFont("helvetica", "bold");
+          pdf.text("Bill of Quantities (BOQ)", pageWidth / 2, isFirstBOQ ? 12 : 11, { align: "center" });
+          if (isFirstBOQ) {
+            pdf.setFontSize(8); pdf.setFont("helvetica", "normal");
+            pdf.text(project.projectName || "Structural Quantity Report", pageWidth / 2, 21, { align: "center" });
+          }
+          pdf.setFontSize(7);
+          pdf.text(pgLabel, pageWidth - margin, isFirstBOQ ? 21 : 11, { align: "right" });
+        }
+
+        function drawColHeaders(bodyY: number) {
+          pdf.setFillColor(30, 41, 59);
+          pdf.rect(margin, bodyY - HEADER_ROW_H, contentWidth, HEADER_ROW_H, "F");
+          pdf.setTextColor(255, 255, 255); pdf.setFontSize(7); pdf.setFont("helvetica", "bold");
+          cols.forEach((col) => {
+            const cx = margin + col.x + (col.align === "center" ? col.w / 2 : col.align === "right" ? col.w - 1 : 1);
+            pdf.text(col.h, cx, bodyY - 2.5, { align: col.align });
+          });
+        }
+
+        function drawBOQFooter(pg: number, total: number) {
+          pdf.setFontSize(7); pdf.setTextColor(148, 163, 184);
+          pdf.text("Generated by Structural Quantity Calculator", margin, pageHeight - 5);
+          pdf.text(`BOQ  ${pg} / ${total}`, pageWidth - margin, pageHeight - 5, { align: "right" });
+        }
+
+        const TYPE_COLORS_PDF: Record<string, [number,number,number]> = {
+          F:  [239, 246, 255],  C:  [255, 247, 237],  B:  [240, 253, 244],
+          SS: [250, 245, 255],  HS: [255, 241, 242],  FS: [240, 253, 250],
+          WS: [255, 251, 235],
+        };
+
+        // page 1
+        pdf.addPage();
+        const pg1Label = `Page 1 / ${boqTotalPages}`;
+        drawBOQHeader(true, pg1Label);
+        drawColHeaders(firstBodyY);
+
+        let rowY  = firstBodyY + ROW_H * 0.85;
+        let rowIdx = 0;
+        let boqPage = 1;
+
+        function renderRow(item: BOQItem) {
+          const bg = TYPE_COLORS_PDF[item.typeCode] ?? [255, 255, 255];
+          pdf.setFillColor(...bg);
+          pdf.rect(margin, rowY - ROW_H * 0.8, contentWidth, ROW_H, "F");
+          pdf.setDrawColor(226, 232, 240); pdf.setLineWidth(0.15);
+          pdf.line(margin, rowY - ROW_H * 0.8 + ROW_H, margin + contentWidth, rowY - ROW_H * 0.8 + ROW_H);
+          pdf.setTextColor(51, 65, 85); pdf.setFontSize(7); pdf.setFont("helvetica", "normal");
+          const cells = [
+            { val: String(item.no),                         col: cols[0] },
+            { val: item.typeCode,                           col: cols[1] },
+            { val: item.floorName.slice(0, 12),             col: cols[2] },
+            { val: item.label.slice(0, 10),                 col: cols[3] },
+            { val: `${item.dim1.toFixed(2)}x${item.dim2.toFixed(2)}x${item.dim3.toFixed(2)}`, col: cols[4] },
+            { val: String(item.qty),                        col: cols[5] },
+            { val: item.volEach.toFixed(3),                 col: cols[6] },
+            { val: item.volTotal.toFixed(3),                col: cols[7] },
+            { val: item.steelKgTotal.toFixed(1),            col: cols[8] },
+            { val: item.costTotal.toFixed(2),               col: cols[9] },
+          ];
+          cells.forEach(({ val, col }) => {
+            const cx = margin + col.x + (col.align === "center" ? col.w / 2 : col.align === "right" ? col.w - 1 : 1);
+            pdf.text(val, cx, rowY, { align: col.align });
+          });
+          rowY += ROW_H;
+          rowIdx++;
+        }
+
+        const maxRowsOnPage = (isFirst: boolean) => isFirst ? firstRowsPerPage : contRowsPerPage;
+
+        while (rowIdx < boqItems.length) {
+          const isFirst = boqPage === 1;
+          const bodyYStart = isFirst ? firstBodyY : contBodyY;
+          const maxRows = maxRowsOnPage(isFirst);
+
+          // check if we need a new page (not on first iteration since page was already added)
+          if (rowIdx > 0 && rowIdx >= firstRowsPerPage + (boqPage - 2) * contRowsPerPage) {
+            pdf.addPage(); boqPage++;
+            drawBOQHeader(false, `Page ${boqPage} / ${boqTotalPages}`);
+            drawColHeaders(contBodyY);
+            rowY = contBodyY + ROW_H * 0.85;
+          } else if (rowIdx === 0) {
+            // already on the page
+          }
+
+          const endRow = rowIdx + maxRows;
+          while (rowIdx < boqItems.length && rowIdx < endRow) {
+            renderRow(boqItems[rowIdx]);
+          }
+
+          drawBOQFooter(boqPage, boqTotalPages);
+
+          // if still more rows, loop will add next page
+          if (rowIdx >= boqItems.length) break;
+          pdf.addPage(); boqPage++;
+          drawBOQHeader(false, `Page ${boqPage} / ${boqTotalPages}`);
+          drawColHeaders(contBodyY);
+          rowY = contBodyY + ROW_H * 0.85;
+        }
+
+        // Totals row on last BOQ page
+        const totY = rowY + 2;
+        pdf.setFillColor(22, 163, 74);
+        pdf.rect(margin, totY - ROW_H * 0.8, contentWidth, ROW_H + 1, "F");
+        pdf.setTextColor(255, 255, 255); pdf.setFontSize(7.5); pdf.setFont("helvetica", "bold");
+        pdf.text("TOTAL", margin + 2, totY + 1);
+        pdf.text(boqItems.reduce((s, r) => s + r.volTotal, 0).toFixed(3),
+          margin + cols[7].x + cols[7].w / 2, totY + 1, { align: "center" });
+        pdf.text(boqItems.reduce((s, r) => s + r.steelKgTotal, 0).toFixed(1),
+          margin + cols[8].x + cols[8].w / 2, totY + 1, { align: "center" });
+        pdf.text(boqItems.reduce((s, r) => s + r.costTotal, 0).toFixed(2),
+          margin + cols[9].x + cols[9].w - 1, totY + 1, { align: "right" });
+      }
 
       pdf.save(`structural-report-${project.projectName ? project.projectName.replace(/\s+/g, "-") : Date.now()}.pdf`);
     } catch (err) {
@@ -1396,24 +1612,33 @@ export default function App() {
             </div>
 
             {/* Results view toggle */}
-            <div className="flex gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100">
+            <div className="flex gap-1.5 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100">
               <button type="button" onClick={() => setResultsTab("byFloor")}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
                   resultsTab === "byFloor" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
                 }`}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 حسب الطابق
               </button>
               <button type="button" onClick={() => setResultsTab("byType")}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
                   resultsTab === "byType" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
                 }`}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
-                حسب نوع العنصر
+                حسب النوع
+              </button>
+              <button type="button" onClick={() => setResultsTab("boq")}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                  resultsTab === "boq" ? "bg-green-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                جدول الكميات
               </button>
             </div>
 
@@ -1436,6 +1661,82 @@ export default function App() {
                 <SectionTable section={summary.waffleSlabs} title="بلاطات الواف"      colorClass="bg-amber-50 border-amber-200 text-amber-800" />
               </div>
             )}
+
+            {/* BOQ view */}
+            {resultsTab === "boq" && (() => {
+              const cp = parseFloat(project.concretePricePerM3) || 0;
+              const sp = parseFloat(project.steelPricePerTon)   || 0;
+              const boq = computeBOQ(summary, floors,
+                [footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs],
+                cp, sp);
+              const TYPE_COLORS: Record<string, string> = {
+                F: "bg-blue-50",  C: "bg-orange-50", B: "bg-green-50",
+                SS: "bg-purple-50", HS: "bg-rose-50", FS: "bg-teal-50", WS: "bg-amber-50",
+              };
+              const TYPE_BADGE: Record<string, string> = {
+                F: "bg-blue-100 text-blue-700",    C: "bg-orange-100 text-orange-700",
+                B: "bg-green-100 text-green-700",  SS: "bg-purple-100 text-purple-700",
+                HS: "bg-rose-100 text-rose-700",   FS: "bg-teal-100 text-teal-700",
+                WS: "bg-amber-100 text-amber-700",
+              };
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                  {/* Table header */}
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-slate-700">جدول الكميات (BOQ)</h4>
+                    <span className="text-xs text-slate-400">{boq.length} عنصر</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs" style={{ minWidth: "820px" }}>
+                      <thead className="bg-slate-800 text-white sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2.5 text-right font-semibold w-8">#</th>
+                          <th className="px-3 py-2.5 text-right font-semibold">النوع</th>
+                          <th className="px-3 py-2.5 text-right font-semibold">الطابق</th>
+                          <th className="px-3 py-2.5 text-right font-semibold">الرمز</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">الأبعاد (م)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">العدد</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">حجم/وحدة (م³)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">إجمالي الحجم (م³)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">الحديد (كجم)</th>
+                          <th className="px-3 py-2.5 text-center font-semibold">التكلفة الإجمالية</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {boq.map((item) => (
+                          <tr key={item.no} className={`${TYPE_COLORS[item.typeCode] ?? "bg-white"} hover:brightness-95 transition-all`}>
+                            <td className="px-3 py-2 text-slate-400 font-mono">{item.no}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${TYPE_BADGE[item.typeCode] ?? ""}`}>
+                                {item.typeLabel}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{item.floorName}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{item.label}</td>
+                            <td className="px-3 py-2 text-center text-slate-600 font-mono">
+                              {item.dim1.toFixed(2)} × {item.dim2.toFixed(2)} × {item.dim3.toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 text-center font-bold text-slate-700">{item.qty}</td>
+                            <td className="px-3 py-2 text-center text-slate-600">{fmt(item.volEach, 3)}</td>
+                            <td className="px-3 py-2 text-center font-semibold text-slate-700">{fmt(item.volTotal, 3)}</td>
+                            <td className="px-3 py-2 text-center text-slate-600">{fmt(item.steelKgTotal, 1)}</td>
+                            <td className="px-3 py-2 text-center font-bold text-slate-800">{fmt(item.costTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-slate-900 text-white">
+                        <tr>
+                          <td colSpan={7} className="px-3 py-3 font-bold text-right">المجموع الكلي</td>
+                          <td className="px-3 py-3 text-center font-bold">{fmt(boq.reduce((s, r) => s + r.volTotal, 0), 3)}</td>
+                          <td className="px-3 py-3 text-center font-bold">{fmt(boq.reduce((s, r) => s + r.steelKgTotal, 0), 1)}</td>
+                          <td className="px-3 py-3 text-center font-bold">{fmt(boq.reduce((s, r) => s + r.costTotal, 0))}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Grand summary — always visible */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
