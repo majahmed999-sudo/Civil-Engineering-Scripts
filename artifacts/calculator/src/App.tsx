@@ -39,6 +39,51 @@ interface ProjectInfo {
 
 const LS_KEY = "structural-calc-projects";
 
+interface MixDesign {
+  cement: string;
+  sand: string;
+  gravel: string;
+  compactionFactor: string;
+  bagWeightKg: string;
+}
+
+interface MixResult {
+  dryVolume: number;
+  cementVolume: number;
+  sandVolume: number;
+  gravelVolume: number;
+  cementBags: number;
+}
+
+const initialMix: MixDesign = {
+  cement: "1",
+  sand: "2",
+  gravel: "4",
+  compactionFactor: "1.54",
+  bagWeightKg: "50",
+};
+
+const MIX_PRESETS: { label: string; grade: string; c: string; s: string; g: string }[] = [
+  { label: "1:2:4",   grade: "B200 / C16", c: "1", s: "2",   g: "4" },
+  { label: "1:1.5:3", grade: "B250 / C20", c: "1", s: "1.5", g: "3" },
+  { label: "1:1:2",   grade: "B300 / C25", c: "1", s: "1",   g: "2" },
+];
+
+function computeMix(totalVolume: number, m: MixDesign): MixResult {
+  const c  = parseFloat(m.cement)            || 1;
+  const s  = parseFloat(m.sand)              || 2;
+  const g  = parseFloat(m.gravel)            || 4;
+  const cf = parseFloat(m.compactionFactor)  || 1.54;
+  const bw = parseFloat(m.bagWeightKg)       || 50;
+  const total = c + s + g;
+  const dryVolume    = totalVolume * cf;
+  const cementVolume = (c / total) * dryVolume;
+  const sandVolume   = (s / total) * dryVolume;
+  const gravelVolume = (g / total) * dryVolume;
+  const cementBags   = Math.ceil(cementVolume / (bw / 1440));
+  return { dryVolume, cementVolume, sandVolume, gravelVolume, cementBags };
+}
+
 interface SavedProject {
   id: string;
   name: string;
@@ -52,6 +97,7 @@ interface SavedProject {
   hollowSlabs: ElementType[];
   flatSlabs: ElementType[];
   waffleSlabs: ElementType[];
+  mix?: MixDesign;
 }
 
 function lsLoad(): SavedProject[] {
@@ -458,6 +504,8 @@ export default function App() {
   const [resultsTab, setResultsTab] = useState<"byType" | "byFloor">("byFloor");
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  const [mix, setMix] = useState<MixDesign>(initialMix);
+
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>(lsLoad);
   const [showPanel, setShowPanel] = useState(false);
   const [saveInput, setSaveInput] = useState("");
@@ -528,7 +576,7 @@ export default function App() {
     const entry: SavedProject = {
       id: crypto.randomUUID(), name, savedAt: Date.now(),
       project, floors, footings, columns, beams,
-      solidSlabs, hollowSlabs, flatSlabs, waffleSlabs,
+      solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, mix,
     };
     const updated = [entry, ...savedProjects];
     lsSave(updated);
@@ -546,6 +594,7 @@ export default function App() {
     setHollowSlabs(sp.hollowSlabs);
     setFlatSlabs(sp.flatSlabs);
     setWaffleSlabs(sp.waffleSlabs);
+    if (sp.mix) setMix(sp.mix);
     setSummary(null);
     setActiveTab("footings");
     setSlabSubTab("solid");
@@ -595,6 +644,7 @@ export default function App() {
   function handleReset() {
     setProject(initialProject);
     setFloors(initialFloors);
+    setMix(initialMix);
     setFootings([newElement()]);
     setColumns([newElement()]);
     setBeams([newElement()]);
@@ -968,6 +1018,72 @@ export default function App() {
             </div>
           </div>
 
+          {/* Mix Design */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+            <h2 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              تصميم الخلطة الخرسانية
+            </h2>
+
+            {/* Preset buttons */}
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">اختر نسبة الخلطة (أسمنت : رمل : زلط)</p>
+            <div className="flex gap-2 mb-4">
+              {MIX_PRESETS.map((p) => {
+                const active = mix.cement === p.c && mix.sand === p.s && mix.gravel === p.g;
+                return (
+                  <button key={p.label} type="button"
+                    onClick={() => setMix((m) => ({ ...m, cement: p.c, sand: p.s, gravel: p.g }))}
+                    className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border-2 transition text-center ${
+                      active ? "bg-orange-500 border-orange-500 text-white shadow-sm" : "border-slate-200 text-slate-600 hover:border-orange-300 hover:text-orange-600"
+                    }`}>
+                    <div className="font-bold">{p.label}</div>
+                    <div className={`text-xs mt-0.5 ${active ? "text-orange-100" : "text-slate-400"}`}>{p.grade}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom ratio */}
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">نسبة مخصصة</p>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { key: "cement" as keyof MixDesign, label: "🟫 أسمنت" },
+                { key: "sand"   as keyof MixDesign, label: "🟨 رمل" },
+                { key: "gravel" as keyof MixDesign, label: "⬛ زلط" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
+                  <input type="number" value={mix[key]}
+                    onChange={(e) => setMix((m) => ({ ...m, [key]: e.target.value }))}
+                    placeholder="1" min="0.1" step="0.5"
+                    className="w-full px-2 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition text-center" />
+                </div>
+              ))}
+            </div>
+
+            {/* Advanced settings */}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-orange-50/60 rounded-xl">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">معامل الانكماش (جاف/رطب)</label>
+                <input type="number" value={mix.compactionFactor}
+                  onChange={(e) => setMix((m) => ({ ...m, compactionFactor: e.target.value }))}
+                  placeholder="1.54" min="1" max="2" step="0.01"
+                  className="w-full px-2 py-2 border border-orange-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition text-center" />
+                <p className="text-xs text-slate-400 mt-1">الافتراضي: 1.54</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">وزن الكيس (كجم)</label>
+                <input type="number" value={mix.bagWeightKg}
+                  onChange={(e) => setMix((m) => ({ ...m, bagWeightKg: e.target.value }))}
+                  placeholder="50" min="1" step="1"
+                  className="w-full px-2 py-2 border border-orange-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition text-center" />
+                <p className="text-xs text-slate-400 mt-1">أكياس قياسية: 50 كجم</p>
+              </div>
+            </div>
+          </div>
+
           {/* Tab Nav */}
           <div className="flex gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100">
             {MAIN_TABS.map((tab) => (
@@ -1195,6 +1311,70 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Mix Design Results */}
+            {(() => {
+              const mr = computeMix(summary.totalConcreteVolume, mix);
+              const ratioLabel = `${mix.cement}:${mix.sand}:${mix.gravel}`;
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-5">
+                  <h4 className="text-sm font-bold text-orange-700 mb-1 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                    مواد الخلطة الخرسانية — نسبة {ratioLabel}
+                  </h4>
+                  <p className="text-xs text-slate-400 mb-4">
+                    لإجمالي {fmt(summary.totalConcreteVolume)} م³ خرسانة • الحجم الجاف المطلوب: {fmt(mr.dryVolume)} م³
+                  </p>
+
+                  {/* Big 3 cards */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-1">🟫</div>
+                      <p className="text-xs font-semibold text-orange-600 mb-1">أكياس أسمنت</p>
+                      <p className="text-3xl font-black text-orange-800">{fmt(mr.cementBags, 0)}</p>
+                      <p className="text-xs text-orange-500 mt-1">كيس {mix.bagWeightKg} كجم</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.cementVolume)} م³</p>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-1">🟨</div>
+                      <p className="text-xs font-semibold text-yellow-700 mb-1">حجم الرمل</p>
+                      <p className="text-3xl font-black text-yellow-800">{fmt(mr.sandVolume)}</p>
+                      <p className="text-xs text-yellow-600 mt-1">م³</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.sandVolume * 1.6, 1)} طن تقريباً</p>
+                    </div>
+                    <div className="bg-slate-100 border border-slate-300 rounded-2xl p-4 text-center">
+                      <div className="text-3xl mb-1">⬛</div>
+                      <p className="text-xs font-semibold text-slate-600 mb-1">حجم الزلط</p>
+                      <p className="text-3xl font-black text-slate-800">{fmt(mr.gravelVolume)}</p>
+                      <p className="text-xs text-slate-500 mt-1">م³</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.gravelVolume * 1.55, 1)} طن تقريباً</p>
+                    </div>
+                  </div>
+
+                  {/* Per-m³ reference row */}
+                  <div className="bg-orange-50/70 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-orange-700 mb-2">للمرجع — كميات لكل م³ خرسانة:</p>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {(() => {
+                        const per = computeMix(1, mix);
+                        return [
+                          { icon: "🟫", label: "كيس أسمنت", val: `${fmt(per.cementBags, 0)} كيس` },
+                          { icon: "🟨", label: "رمل",        val: `${fmt(per.sandVolume)} م³` },
+                          { icon: "⬛", label: "زلط",        val: `${fmt(per.gravelVolume)} م³` },
+                        ].map((item) => (
+                          <div key={item.label}>
+                            <p className="text-xs text-slate-500">{item.icon} {item.label}</p>
+                            <p className="text-sm font-bold text-slate-700">{item.val}</p>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
