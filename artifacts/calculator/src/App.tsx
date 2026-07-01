@@ -5,6 +5,11 @@ import html2canvas from "html2canvas";
 type TabId = "footings" | "columns" | "beams" | "slabs";
 type SlabSubType = "solid" | "hollow" | "flat" | "waffle";
 
+interface Floor {
+  id: string;
+  name: string;
+}
+
 interface ElementType {
   id: string;
   label: string;
@@ -12,6 +17,7 @@ interface ElementType {
   dim2: string;
   dim3: string;
   quantity: string;
+  floorId: string;
 }
 
 interface ProjectInfo {
@@ -53,6 +59,21 @@ interface SectionSummary {
   total: number;
 }
 
+interface FloorBreakdown {
+  floor: Floor;
+  footings: SectionSummary;
+  columns: SectionSummary;
+  beams: SectionSummary;
+  solidSlabs: SectionSummary;
+  hollowSlabs: SectionSummary;
+  flatSlabs: SectionSummary;
+  waffleSlabs: SectionSummary;
+  totalVolume: number;
+  totalSteelKg: number;
+  totalSteelTons: number;
+  totalCost: number;
+}
+
 interface FullSummary {
   footings: SectionSummary;
   columns: SectionSummary;
@@ -61,6 +82,7 @@ interface FullSummary {
   hollowSlabs: SectionSummary;
   flatSlabs: SectionSummary;
   waffleSlabs: SectionSummary;
+  byFloor: FloorBreakdown[];
   totalConcreteVolume: number;
   totalSteelKg: number;
   totalSteelTons: number;
@@ -69,13 +91,16 @@ interface FullSummary {
   grandTotal: number;
 }
 
-const newElement = (): ElementType => ({
+const DEFAULT_FLOOR_ID = "floor-ground";
+
+const newElement = (floorId: string = DEFAULT_FLOOR_ID): ElementType => ({
   id: crypto.randomUUID(),
   label: "",
   dim1: "",
   dim2: "",
   dim3: "",
   quantity: "1",
+  floorId,
 });
 
 const initialProject: ProjectInfo = {
@@ -95,6 +120,10 @@ const initialProject: ProjectInfo = {
   waffleConcreteRatio: "0.65",
 };
 
+const initialFloors: Floor[] = [
+  { id: DEFAULT_FLOOR_ID, name: "الدور الأرضي" },
+];
+
 const SLAB_SUBTYPES: {
   id: SlabSubType;
   label: string;
@@ -106,57 +135,14 @@ const SLAB_SUBTYPES: {
   defaultLabel: string;
   note?: string;
 }[] = [
-  {
-    id: "solid",
-    label: "بلاطة مصمتة",
-    shortLabel: "مصمتة",
-    color: "purple",
-    activeBg: "bg-purple-600",
-    steelRatioKey: "solidSlabSteelRatio",
-    defaultLabel: "SS",
-    note: "حجم الخرسانة = الطول × العرض × السمك",
-  },
-  {
-    id: "hollow",
-    label: "بلاطة مجوفة (هولوكور)",
-    shortLabel: "مجوفة",
-    color: "rose",
-    activeBg: "bg-rose-600",
-    steelRatioKey: "hollowSlabSteelRatio",
-    concreteRatioKey: "hollowConcreteRatio",
-    defaultLabel: "HS",
-    note: "حجم الخرسانة الفعلي = الطول × العرض × السمك × نسبة الخرسانة",
-  },
-  {
-    id: "flat",
-    label: "بلاطة مسطحة",
-    shortLabel: "مسطحة",
-    color: "teal",
-    activeBg: "bg-teal-600",
-    steelRatioKey: "flatSlabSteelRatio",
-    defaultLabel: "FS",
-    note: "حجم الخرسانة = الطول × العرض × السمك",
-  },
-  {
-    id: "waffle",
-    label: "بلاطة واف",
-    shortLabel: "واف",
-    color: "amber",
-    activeBg: "bg-amber-600",
-    steelRatioKey: "waffleSlabSteelRatio",
-    concreteRatioKey: "waffleConcreteRatio",
-    defaultLabel: "WS",
-    note: "حجم الخرسانة الفعلي = الطول × العرض × السمك × نسبة الخرسانة",
-  },
+  { id: "solid",  label: "بلاطة مصمتة",         shortLabel: "مصمتة", color: "purple", activeBg: "bg-purple-600", steelRatioKey: "solidSlabSteelRatio",  defaultLabel: "SS", note: "حجم الخرسانة = الطول × العرض × السمك" },
+  { id: "hollow", label: "بلاطة مجوفة (هولوكور)", shortLabel: "مجوفة", color: "rose",   activeBg: "bg-rose-600",   steelRatioKey: "hollowSlabSteelRatio", concreteRatioKey: "hollowConcreteRatio", defaultLabel: "HS", note: "حجم الخرسانة الفعلي = الطول × العرض × السمك × نسبة الخرسانة" },
+  { id: "flat",   label: "بلاطة مسطحة",          shortLabel: "مسطحة", color: "teal",   activeBg: "bg-teal-600",   steelRatioKey: "flatSlabSteelRatio",   defaultLabel: "FS", note: "حجم الخرسانة = الطول × العرض × السمك" },
+  { id: "waffle", label: "بلاطة واف",             shortLabel: "واف",   color: "amber",  activeBg: "bg-amber-600",  steelRatioKey: "waffleSlabSteelRatio", concreteRatioKey: "waffleConcreteRatio", defaultLabel: "WS", note: "حجم الخرسانة الفعلي = الطول × العرض × السمك × نسبة الخرسانة" },
 ];
 
 function isElementValid(e: ElementType) {
-  return (
-    parseFloat(e.dim1) > 0 &&
-    parseFloat(e.dim2) > 0 &&
-    parseFloat(e.dim3) > 0 &&
-    parseInt(e.quantity) > 0
-  );
+  return parseFloat(e.dim1) > 0 && parseFloat(e.dim2) > 0 && parseFloat(e.dim3) > 0 && parseInt(e.quantity) > 0;
 }
 
 function isPricesValid(p: ProjectInfo) {
@@ -168,17 +154,15 @@ function computeSection(
   ratio: number,
   concretePrice: number,
   steelPricePerTon: number,
-  concreteEfficiency = 1.0
+  concreteEfficiency = 1.0,
+  floorId?: string
 ): SectionSummary {
-  const results: ElementResult[] = elements.filter(isElementValid).map((e) => {
-    const d1 = parseFloat(e.dim1);
-    const d2 = parseFloat(e.dim2);
-    const d3 = parseFloat(e.dim3);
-    const q = parseInt(e.quantity);
+  const filtered = floorId !== undefined ? elements.filter((e) => e.floorId === floorId) : elements;
+  const results: ElementResult[] = filtered.filter(isElementValid).map((e) => {
+    const d1 = parseFloat(e.dim1), d2 = parseFloat(e.dim2), d3 = parseFloat(e.dim3), q = parseInt(e.quantity);
     const volumeEach = d1 * d2 * d3 * concreteEfficiency;
     const totalVolume = volumeEach * q;
-    const steelKg = totalVolume * ratio;
-    return { id: e.id, label: e.label || "عنصر", dim1: d1, dim2: d2, dim3: d3, quantity: q, volumeEach, totalVolume, steelKg };
+    return { id: e.id, label: e.label || "عنصر", dim1: d1, dim2: d2, dim3: d3, quantity: q, volumeEach, totalVolume, steelKg: totalVolume * ratio };
   });
   const totalVolume = results.reduce((s, r) => s + r.totalVolume, 0);
   const totalSteelKg = results.reduce((s, r) => s + r.steelKg, 0);
@@ -189,29 +173,50 @@ function computeSection(
 }
 
 function computeFull(
-  footings: ElementType[],
-  columns: ElementType[],
-  beams: ElementType[],
-  solidSlabs: ElementType[],
-  hollowSlabs: ElementType[],
-  flatSlabs: ElementType[],
-  waffleSlabs: ElementType[],
-  p: ProjectInfo
+  footings: ElementType[], columns: ElementType[], beams: ElementType[],
+  solidSlabs: ElementType[], hollowSlabs: ElementType[], flatSlabs: ElementType[], waffleSlabs: ElementType[],
+  floors: Floor[], p: ProjectInfo
 ): FullSummary {
-  const cp = parseFloat(p.concretePricePerM3);
-  const sp = parseFloat(p.steelPricePerTon);
-  const f  = computeSection(footings,    parseFloat(p.footingSteelRatio  || "80"),  cp, sp);
-  const c  = computeSection(columns,     parseFloat(p.columnSteelRatio   || "120"), cp, sp);
-  const b  = computeSection(beams,       parseFloat(p.beamSteelRatio     || "150"), cp, sp);
-  const ss = computeSection(solidSlabs,  parseFloat(p.solidSlabSteelRatio || "90"), cp, sp);
-  const hs = computeSection(hollowSlabs, parseFloat(p.hollowSlabSteelRatio || "50"), cp, sp, parseFloat(p.hollowConcreteRatio || "0.55"));
-  const fs = computeSection(flatSlabs,   parseFloat(p.flatSlabSteelRatio  || "110"), cp, sp);
-  const ws = computeSection(waffleSlabs, parseFloat(p.waffleSlabSteelRatio || "85"), cp, sp, parseFloat(p.waffleConcreteRatio || "0.65"));
+  const cp = parseFloat(p.concretePricePerM3), sp = parseFloat(p.steelPricePerTon);
+  const fr = parseFloat(p.footingSteelRatio || "80"), cr = parseFloat(p.columnSteelRatio || "120");
+  const br = parseFloat(p.beamSteelRatio || "150");
+  const ssr = parseFloat(p.solidSlabSteelRatio || "90"),  hsr = parseFloat(p.hollowSlabSteelRatio || "50");
+  const fsr = parseFloat(p.flatSlabSteelRatio  || "110"), wsr = parseFloat(p.waffleSlabSteelRatio || "85");
+  const hce = parseFloat(p.hollowConcreteRatio || "0.55"), wce = parseFloat(p.waffleConcreteRatio || "0.65");
 
+  const f  = computeSection(footings,    fr,  cp, sp);
+  const c  = computeSection(columns,     cr,  cp, sp);
+  const b  = computeSection(beams,       br,  cp, sp);
+  const ss = computeSection(solidSlabs,  ssr, cp, sp);
+  const hs = computeSection(hollowSlabs, hsr, cp, sp, hce);
+  const fs = computeSection(flatSlabs,   fsr, cp, sp);
+  const ws = computeSection(waffleSlabs, wsr, cp, sp, wce);
   const all = [f, c, b, ss, hs, fs, ws];
+
+  const byFloor: FloorBreakdown[] = floors.map((floor) => {
+    const ff  = computeSection(footings,    fr,  cp, sp, 1,   floor.id);
+    const fc  = computeSection(columns,     cr,  cp, sp, 1,   floor.id);
+    const fb  = computeSection(beams,       br,  cp, sp, 1,   floor.id);
+    const fss = computeSection(solidSlabs,  ssr, cp, sp, 1,   floor.id);
+    const fhs = computeSection(hollowSlabs, hsr, cp, sp, hce, floor.id);
+    const ffs = computeSection(flatSlabs,   fsr, cp, sp, 1,   floor.id);
+    const fws = computeSection(waffleSlabs, wsr, cp, sp, wce, floor.id);
+    const fa = [ff, fc, fb, fss, fhs, ffs, fws];
+    return {
+      floor,
+      footings: ff, columns: fc, beams: fb,
+      solidSlabs: fss, hollowSlabs: fhs, flatSlabs: ffs, waffleSlabs: fws,
+      totalVolume:    fa.reduce((s, x) => s + x.totalVolume, 0),
+      totalSteelKg:   fa.reduce((s, x) => s + x.totalSteelKg, 0),
+      totalSteelTons: fa.reduce((s, x) => s + x.totalSteelTons, 0),
+      totalCost:      fa.reduce((s, x) => s + x.total, 0),
+    };
+  });
+
   return {
     footings: f, columns: c, beams: b,
     solidSlabs: ss, hollowSlabs: hs, flatSlabs: fs, waffleSlabs: ws,
+    byFloor,
     totalConcreteVolume: all.reduce((s, x) => s + x.totalVolume, 0),
     totalSteelKg:        all.reduce((s, x) => s + x.totalSteelKg, 0),
     totalSteelTons:      all.reduce((s, x) => s + x.totalSteelTons, 0),
@@ -226,17 +231,20 @@ function fmt(n: number, decimals = 2) {
 }
 
 const MAIN_TABS: { id: TabId; label: string; icon: string; dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string }[] = [
-  { id: "footings", label: "القواعد",  icon: "🟦", dim1Label: "الطول (م)", dim2Label: "العرض (م)",  dim3Label: "السمك (م)",      defaultLabel: "F" },
-  { id: "columns",  label: "الأعمدة", icon: "🟧", dim1Label: "العرض (م)", dim2Label: "العمق (م)",  dim3Label: "الارتفاع (م)",   defaultLabel: "C" },
-  { id: "beams",    label: "الكمرات", icon: "🟩", dim1Label: "العرض (م)", dim2Label: "العمق (م)",  dim3Label: "الطول (م)",       defaultLabel: "B" },
-  { id: "slabs",    label: "البلاطات",icon: "🟪", dim1Label: "الطول (م)", dim2Label: "العرض (م)",  dim3Label: "السمك (م)",       defaultLabel: "S" },
+  { id: "footings", label: "القواعد",  icon: "🟦", dim1Label: "الطول (م)", dim2Label: "العرض (م)", dim3Label: "السمك (م)",    defaultLabel: "F" },
+  { id: "columns",  label: "الأعمدة", icon: "🟧", dim1Label: "العرض (م)", dim2Label: "العمق (م)", dim3Label: "الارتفاع (م)", defaultLabel: "C" },
+  { id: "beams",    label: "الكمرات", icon: "🟩", dim1Label: "العرض (م)", dim2Label: "العمق (م)", dim3Label: "الطول (م)",    defaultLabel: "B" },
+  { id: "slabs",    label: "البلاطات",icon: "🟪", dim1Label: "الطول (م)", dim2Label: "العرض (م)", dim3Label: "السمك (م)",    defaultLabel: "S" },
 ];
 
-function ElementCard({ element, idx, dim1Label, dim2Label, dim3Label, defaultLabel, tabCount, onChange, onRemove, accentColor }: {
+function ElementCard({
+  element, idx, dim1Label, dim2Label, dim3Label, defaultLabel,
+  tabCount, floors, accentColor, onChange, onRemove,
+}: {
   element: ElementType; idx: number;
   dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string;
-  tabCount: number; accentColor?: string;
-  onChange: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void;
+  tabCount: number; floors: Floor[]; accentColor?: string;
+  onChange: (id: string, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onRemove: (id: string) => void;
 }) {
   const accent = accentColor || "blue";
@@ -257,11 +265,22 @@ function ElementCard({ element, idx, dim1Label, dim2Label, dim3Label, defaultLab
         )}
       </div>
       <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">المسمى / الرمز <span className="text-slate-400">(اختياري)</span></label>
-          <input type="text" name="label" value={element.label} onChange={(e) => onChange(element.id, e)}
-            placeholder={`مثال: ${defaultLabel}${idx + 1}`}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition" />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">المسمى / الرمز <span className="text-slate-400">(اختياري)</span></label>
+            <input type="text" name="label" value={element.label} onChange={(e) => onChange(element.id, e)}
+              placeholder={`مثال: ${defaultLabel}${idx + 1}`}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">الطابق</label>
+            <select name="floorId" value={element.floorId} onChange={(e) => onChange(element.id, e)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition bg-white">
+              {floors.map((fl) => (
+                <option key={fl.id} value={fl.id}>{fl.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="grid grid-cols-4 gap-2">
           {[
@@ -329,10 +348,77 @@ function SectionTable({ section, title, colorClass }: {
   );
 }
 
+function FloorCard({ breakdown }: { breakdown: FloorBreakdown }) {
+  const [open, setOpen] = useState(false);
+  const hasData = breakdown.totalVolume > 0;
+  if (!hasData) return null;
+
+  const rows = [
+    { label: "🟦 القواعد",        sec: breakdown.footings,    color: "bg-blue-50 border-blue-200 text-blue-800" },
+    { label: "🟧 الأعمدة",        sec: breakdown.columns,     color: "bg-orange-50 border-orange-200 text-orange-800" },
+    { label: "🟩 الكمرات",        sec: breakdown.beams,       color: "bg-green-50 border-green-200 text-green-800" },
+    { label: "🟣 مصمتة",          sec: breakdown.solidSlabs,  color: "bg-purple-50 border-purple-200 text-purple-800" },
+    { label: "🔴 مجوفة",          sec: breakdown.hollowSlabs, color: "bg-rose-50 border-rose-200 text-rose-800" },
+    { label: "🟢 مسطحة",          sec: breakdown.flatSlabs,   color: "bg-teal-50 border-teal-200 text-teal-800" },
+    { label: "🟡 واف",            sec: breakdown.waffleSlabs, color: "bg-amber-50 border-amber-200 text-amber-800" },
+  ].filter((r) => r.sec.elements.length > 0);
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-right">
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold">
+            {breakdown.floor.name.charAt(0)}
+          </span>
+          <div>
+            <p className="text-sm font-bold text-slate-800">{breakdown.floor.name}</p>
+            <p className="text-xs text-slate-500">
+              {fmt(breakdown.totalVolume)} م³ خرسانة &nbsp;•&nbsp; {fmt(breakdown.totalSteelTons, 3)} طن حديد
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold text-green-700 bg-green-50 px-3 py-1 rounded-lg">
+            {fmt(breakdown.totalCost)}
+          </span>
+          <svg className={`w-4 h-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {open && (
+        <div className="p-4 space-y-4 bg-white">
+          {rows.map((row) => (
+            <SectionTable key={row.label} section={row.sec} title={row.label} colorClass={row.color} />
+          ))}
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-blue-600 font-medium mb-0.5">خرسانة</p>
+              <p className="text-sm font-bold text-blue-800">{fmt(breakdown.totalVolume)} م³</p>
+            </div>
+            <div className="bg-slate-100 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-600 font-medium mb-0.5">حديد</p>
+              <p className="text-sm font-bold text-slate-800">{fmt(breakdown.totalSteelTons, 3)} طن</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-green-600 font-medium mb-0.5">تكلفة الطابق</p>
+              <p className="text-sm font-bold text-green-800">{fmt(breakdown.totalCost)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("footings");
   const [slabSubTab, setSlabSubTab] = useState<SlabSubType>("solid");
   const [project, setProject] = useState<ProjectInfo>(initialProject);
+  const [floors, setFloors] = useState<Floor[]>(initialFloors);
 
   const [footings,    setFootings]    = useState<ElementType[]>([newElement()]);
   const [columns,     setColumns]     = useState<ElementType[]>([newElement()]);
@@ -344,6 +430,7 @@ export default function App() {
 
   const [summary, setSummary] = useState<FullSummary | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [resultsTab, setResultsTab] = useState<"byType" | "byFloor">("byFloor");
   const resultsRef = useRef<HTMLDivElement>(null);
 
   type MainStateMap = Record<Exclude<TabId, "slabs">, [ElementType[], React.Dispatch<React.SetStateAction<ElementType[]>>]>;
@@ -354,7 +441,6 @@ export default function App() {
     columns:  [columns,  setColumns],
     beams:    [beams,    setBeams],
   };
-
   const slabStateMap: SlabStateMap = {
     solid:  [solidSlabs,  setSolidSlabs],
     hollow: [hollowSlabs, setHollowSlabs],
@@ -362,19 +448,24 @@ export default function App() {
     waffle: [waffleSlabs, setWaffleSlabs],
   };
 
+  const allSetters = [setFootings, setColumns, setBeams, setSolidSlabs, setHollowSlabs, setFlatSlabs, setWaffleSlabs];
+
   function handleProjectChange(e: React.ChangeEvent<HTMLInputElement>) {
     setProject((p) => ({ ...p, [e.target.name]: e.target.value }));
     setSummary(null);
   }
 
-  function handleElementChange(elements: ElementType[], setter: React.Dispatch<React.SetStateAction<ElementType[]>>, id: string, e: React.ChangeEvent<HTMLInputElement>) {
-    void elements;
+  function handleElementChange(
+    setter: React.Dispatch<React.SetStateAction<ElementType[]>>,
+    id: string,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     setter((es) => es.map((el) => el.id === id ? { ...el, [e.target.name]: e.target.value } : el));
     setSummary(null);
   }
 
-  function addElement(setter: React.Dispatch<React.SetStateAction<ElementType[]>>) {
-    setter((es) => [...es, newElement()]);
+  function addElement(setter: React.Dispatch<React.SetStateAction<ElementType[]>>, defaultFloorId: string) {
+    setter((es) => [...es, newElement(defaultFloorId)]);
   }
 
   function removeElement(elements: ElementType[], setter: React.Dispatch<React.SetStateAction<ElementType[]>>, id: string) {
@@ -383,18 +474,38 @@ export default function App() {
     setSummary(null);
   }
 
+  function addFloor() {
+    const num = floors.length + 1;
+    const names = ["الدور الأرضي", "الدور الأول", "الدور الثاني", "الدور الثالث", "الدور الرابع", "الدور الخامس", "الدور السادس", "الدور السابع", "الدور الثامن", "الدور التاسع"];
+    const name = names[num - 1] ?? `الدور ${num - 1}`;
+    setFloors((fs) => [...fs, { id: crypto.randomUUID(), name }]);
+  }
+
+  function removeFloor(floorId: string) {
+    if (floors.length === 1) return;
+    const fallback = floors.find((f) => f.id !== floorId)!.id;
+    setFloors((fs) => fs.filter((f) => f.id !== floorId));
+    allSetters.forEach((setter) => setter((es) => es.map((e) => e.floorId === floorId ? { ...e, floorId: fallback } : e)));
+    setSummary(null);
+  }
+
+  function renameFloor(floorId: string, name: string) {
+    setFloors((fs) => fs.map((f) => f.id === floorId ? { ...f, name } : f));
+  }
+
   const allElements = [...footings, ...columns, ...beams, ...solidSlabs, ...hollowSlabs, ...flatSlabs, ...waffleSlabs];
 
   function handleCalculate(e: React.FormEvent) {
     e.preventDefault();
     if (allElements.some(isElementValid) && isPricesValid(project)) {
-      setSummary(computeFull(footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, project));
+      setSummary(computeFull(footings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, floors, project));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     }
   }
 
   function handleReset() {
     setProject(initialProject);
+    setFloors(initialFloors);
     setFootings([newElement()]);
     setColumns([newElement()]);
     setBeams([newElement()]);
@@ -440,7 +551,6 @@ export default function App() {
         if (project.engineerName) pdf.text(`Engineer: ${project.engineerName}`, margin, 41);
         if (project.clientName) pdf.text(`Client: ${project.clientName}`, project.engineerName ? pageWidth / 2 : margin, 41);
       }
-
       pdf.setDrawColor(226, 232, 240);
       pdf.setLineWidth(0.3);
       pdf.line(margin, 45, pageWidth - margin, 45);
@@ -452,7 +562,6 @@ export default function App() {
         const scale = availHeight / imgHeight;
         pdf.addImage(imgData, "PNG", margin, 50, contentWidth * scale, availHeight);
       }
-
       pdf.setFontSize(7);
       pdf.setTextColor(148, 163, 184);
       pdf.text("Generated by Structural Quantity Calculator", pageWidth / 2, pageHeight - 5, { align: "center" });
@@ -465,9 +574,9 @@ export default function App() {
   }
 
   const canCalculate = allElements.some(isElementValid) && isPricesValid(project);
-
   const activeSlabConfig = SLAB_SUBTYPES.find((s) => s.id === slabSubTab)!;
   const [activeSlabElements, activeSlabSetter] = slabStateMap[slabSubTab];
+  const defaultFloorId = floors[0]?.id ?? DEFAULT_FLOOR_ID;
 
   const sectionHasData = (tab: TabId) => {
     if (tab === "slabs") return [...solidSlabs, ...hollowSlabs, ...flatSlabs, ...waffleSlabs].some(isElementValid);
@@ -491,6 +600,7 @@ export default function App() {
         </div>
 
         <form onSubmit={handleCalculate} className="space-y-4">
+
           {/* Project Info */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
             <h2 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
@@ -523,6 +633,46 @@ export default function App() {
             </div>
           </div>
 
+          {/* Floor Manager */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-blue-600 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                الطوابق
+              </h2>
+              <button type="button" onClick={addFloor}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                إضافة طابق
+              </button>
+            </div>
+            <div className="space-y-2">
+              {floors.map((floor, idx) => (
+                <div key={floor.id} className="flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0">{idx + 1}</span>
+                  <input
+                    type="text"
+                    value={floor.name}
+                    onChange={(e) => renameFloor(floor.id, e.target.value)}
+                    className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition" />
+                  {floors.length > 1 && (
+                    <button type="button" onClick={() => removeFloor(floor.id)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">سيُطلب منك تحديد الطابق لكل عنصر عند الإدخال</p>
+          </div>
+
           {/* Prices & Ratios */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
             <h2 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
@@ -545,14 +695,12 @@ export default function App() {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
               </div>
             </div>
-
-            {/* Steel ratios - structural elements */}
             <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد العناصر الإنشائية (كجم/م³)</p>
             <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl mb-3">
               {[
-                { name: "footingSteelRatio",  label: "القواعد",  placeholder: "80"  },
-                { name: "columnSteelRatio",   label: "الأعمدة", placeholder: "120" },
-                { name: "beamSteelRatio",     label: "الكمرات", placeholder: "150" },
+                { name: "footingSteelRatio", label: "القواعد",  placeholder: "80"  },
+                { name: "columnSteelRatio",  label: "الأعمدة", placeholder: "120" },
+                { name: "beamSteelRatio",    label: "الكمرات", placeholder: "150" },
               ].map((f) => (
                 <div key={f.name}>
                   <label className="block text-xs font-medium text-slate-500 mb-1">{f.label}</label>
@@ -562,16 +710,14 @@ export default function App() {
                 </div>
               ))}
             </div>
-
-            {/* Steel ratios - slab types */}
             <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">معدلات حديد البلاطات (كجم/م³)</p>
             <div className="p-3 bg-purple-50/60 rounded-xl space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { name: "solidSlabSteelRatio",  label: "🔵 بلاطة مصمتة",        placeholder: "90"  },
-                  { name: "hollowSlabSteelRatio",  label: "🔴 بلاطة مجوفة",        placeholder: "50"  },
-                  { name: "flatSlabSteelRatio",    label: "🟢 بلاطة مسطحة",        placeholder: "110" },
-                  { name: "waffleSlabSteelRatio",  label: "🟡 بلاطة واف",          placeholder: "85"  },
+                  { name: "solidSlabSteelRatio",  label: "🔵 بلاطة مصمتة", placeholder: "90"  },
+                  { name: "hollowSlabSteelRatio",  label: "🔴 بلاطة مجوفة", placeholder: "50"  },
+                  { name: "flatSlabSteelRatio",    label: "🟢 بلاطة مسطحة", placeholder: "110" },
+                  { name: "waffleSlabSteelRatio",  label: "🟡 بلاطة واف",   placeholder: "85"  },
                 ].map((f) => (
                   <div key={f.name}>
                     <label className="block text-xs font-medium text-slate-500 mb-1">{f.label}</label>
@@ -581,24 +727,23 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              {/* Concrete efficiency for hollow + waffle */}
               <div className="border-t border-purple-200 pt-3">
-                <p className="text-xs font-medium text-slate-500 mb-2">نسبة الخرسانة الفعلية (تُحسب للمجوفة والواف فقط)</p>
+                <p className="text-xs font-medium text-slate-500 mb-2">نسبة الخرسانة الفعلية (للمجوفة والواف)</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">🔴 مجوفة — نسبة الخرسانة</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">🔴 مجوفة</label>
                     <input type="number" name="hollowConcreteRatio" value={project.hollowConcreteRatio} onChange={handleProjectChange}
                       placeholder="0.55" min="0.1" max="1" step="0.01"
                       className="w-full px-2 py-2 border border-purple-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition text-center" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">🟡 واف — نسبة الخرسانة</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">🟡 واف</label>
                     <input type="number" name="waffleConcreteRatio" value={project.waffleConcreteRatio} onChange={handleProjectChange}
                       placeholder="0.65" min="0.1" max="1" step="0.01"
                       className="w-full px-2 py-2 border border-purple-200 rounded-lg bg-white text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition text-center" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 mt-1.5">مثال: 0.55 تعني 55% من الحجم الكلي خرسانة صلبة (القيمة بين 0.1 و 1)</p>
+                <p className="text-xs text-slate-400 mt-1.5">القيمة بين 0.1 و 1 — مثال: 0.55 تعني 55% خرسانة صلبة</p>
               </div>
             </div>
           </div>
@@ -608,9 +753,7 @@ export default function App() {
             {MAIN_TABS.map((tab) => (
               <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 ${
-                  activeTab === tab.id
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  activeTab === tab.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
                 }`}>
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
@@ -630,11 +773,11 @@ export default function App() {
                 {elements.map((el, idx) => (
                   <ElementCard key={el.id} element={el} idx={idx}
                     dim1Label={tabCfg.dim1Label} dim2Label={tabCfg.dim2Label} dim3Label={tabCfg.dim3Label}
-                    defaultLabel={tabCfg.defaultLabel} tabCount={elements.length}
-                    onChange={(id, e) => handleElementChange(elements, setter, id, e)}
+                    defaultLabel={tabCfg.defaultLabel} tabCount={elements.length} floors={floors}
+                    onChange={(id, e) => handleElementChange(setter, id, e)}
                     onRemove={(id) => removeElement(elements, setter, id)} />
                 ))}
-                <button type="button" onClick={() => addElement(setter)}
+                <button type="button" onClick={() => addElement(setter, defaultFloorId)}
                   className="w-full py-3 border-2 border-dashed border-blue-200 rounded-2xl text-blue-500 text-sm font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -648,7 +791,6 @@ export default function App() {
           {/* Tab Content — slabs */}
           {activeTab === "slabs" && (
             <div className="space-y-3">
-              {/* Slab type header */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">اختر نوع البلاطة</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -667,24 +809,19 @@ export default function App() {
                   ))}
                 </div>
                 {activeSlabConfig.note && (
-                  <p className="mt-3 text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
-                    ℹ️ {activeSlabConfig.note}
-                  </p>
+                  <p className="mt-3 text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-2">ℹ️ {activeSlabConfig.note}</p>
                 )}
               </div>
-
-              {/* Elements for active slab sub-type */}
               {activeSlabElements.map((el, idx) => (
                 <ElementCard key={el.id} element={el} idx={idx}
                   dim1Label="الطول (م)" dim2Label="العرض (م)" dim3Label="السمك (م)"
                   defaultLabel={activeSlabConfig.defaultLabel}
-                  tabCount={activeSlabElements.length}
+                  tabCount={activeSlabElements.length} floors={floors}
                   accentColor={activeSlabConfig.color}
-                  onChange={(id, e) => handleElementChange(activeSlabElements, activeSlabSetter, id, e)}
+                  onChange={(id, e) => handleElementChange(activeSlabSetter, id, e)}
                   onRemove={(id) => removeElement(activeSlabElements, activeSlabSetter, id)} />
               ))}
-
-              <button type="button" onClick={() => addElement(activeSlabSetter)}
+              <button type="button" onClick={() => addElement(activeSlabSetter, defaultFloorId)}
                 className="w-full py-3 border-2 border-dashed border-purple-200 rounded-2xl text-purple-500 text-sm font-medium hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50/50 transition flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -730,61 +867,88 @@ export default function App() {
               </button>
             </div>
 
-            {/* Detailed tables */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 space-y-5">
-              <SectionTable section={summary.footings}    title="القواعد"           colorClass="bg-blue-50 border-blue-200 text-blue-800" />
-              <SectionTable section={summary.columns}     title="الأعمدة"           colorClass="bg-orange-50 border-orange-200 text-orange-800" />
-              <SectionTable section={summary.beams}       title="الكمرات"           colorClass="bg-green-50 border-green-200 text-green-800" />
-              <SectionTable section={summary.solidSlabs}  title="البلاطات المصمتة"  colorClass="bg-purple-50 border-purple-200 text-purple-800" />
-              <SectionTable section={summary.hollowSlabs} title="البلاطات المجوفة"  colorClass="bg-rose-50 border-rose-200 text-rose-800" />
-              <SectionTable section={summary.flatSlabs}   title="البلاطات المسطحة"  colorClass="bg-teal-50 border-teal-200 text-teal-800" />
-              <SectionTable section={summary.waffleSlabs} title="بلاطات الواف"      colorClass="bg-amber-50 border-amber-200 text-amber-800" />
+            {/* Results view toggle */}
+            <div className="flex gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100">
+              <button type="button" onClick={() => setResultsTab("byFloor")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+                  resultsTab === "byFloor" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+                }`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                حسب الطابق
+              </button>
+              <button type="button" onClick={() => setResultsTab("byType")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
+                  resultsTab === "byType" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+                }`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                حسب نوع العنصر
+              </button>
             </div>
 
-            {/* Grand summary */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-              <h4 className="text-sm font-bold text-slate-700 mb-3">الملخص الإجمالي</h4>
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="text-right px-4 py-2.5 font-semibold text-slate-600">القسم</th>
-                      <th className="text-center px-3 py-2.5 font-semibold text-slate-600">الحجم (م³)</th>
-                      <th className="text-center px-3 py-2.5 font-semibold text-slate-600">الحديد (طن)</th>
-                      <th className="text-center px-3 py-2.5 font-semibold text-slate-600">التكلفة</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { label: "🟦 القواعد",           sec: summary.footings,    bg: "bg-blue-50/40" },
-                      { label: "🟧 الأعمدة",           sec: summary.columns,     bg: "bg-orange-50/40" },
-                      { label: "🟩 الكمرات",           sec: summary.beams,       bg: "bg-green-50/40" },
-                      { label: "🟣 مصمتة",             sec: summary.solidSlabs,  bg: "bg-purple-50/40" },
-                      { label: "🔴 مجوفة",             sec: summary.hollowSlabs, bg: "bg-rose-50/40" },
-                      { label: "🟢 مسطحة",             sec: summary.flatSlabs,   bg: "bg-teal-50/40" },
-                      { label: "🟡 واف",               sec: summary.waffleSlabs, bg: "bg-amber-50/40" },
-                    ].filter((row) => row.sec.elements.length > 0).map((row) => (
-                      <tr key={row.label} className={row.bg}>
-                        <td className="px-4 py-2.5 font-medium text-slate-700">{row.label}</td>
-                        <td className="px-3 py-2.5 text-center text-slate-600">{fmt(row.sec.totalVolume)}</td>
-                        <td className="px-3 py-2.5 text-center text-slate-600">{fmt(row.sec.totalSteelTons, 3)}</td>
-                        <td className="px-3 py-2.5 text-center text-slate-600">{fmt(row.sec.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-slate-800 text-white">
-                    <tr>
-                      <td className="px-4 py-3 font-bold">الإجمالي الكلي</td>
-                      <td className="px-3 py-3 text-center font-bold">{fmt(summary.totalConcreteVolume)}</td>
-                      <td className="px-3 py-3 text-center font-bold">{fmt(summary.totalSteelTons, 3)}</td>
-                      <td className="px-3 py-3 text-center font-bold">{fmt(summary.grandTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+            {/* BY FLOOR view */}
+            {resultsTab === "byFloor" && (
+              <div className="space-y-3">
+                {summary.byFloor.map((bd) => <FloorCard key={bd.floor.id} breakdown={bd} />)}
               </div>
+            )}
+
+            {/* BY TYPE view */}
+            {resultsTab === "byType" && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 space-y-5">
+                <SectionTable section={summary.footings}    title="القواعد"           colorClass="bg-blue-50 border-blue-200 text-blue-800" />
+                <SectionTable section={summary.columns}     title="الأعمدة"           colorClass="bg-orange-50 border-orange-200 text-orange-800" />
+                <SectionTable section={summary.beams}       title="الكمرات"           colorClass="bg-green-50 border-green-200 text-green-800" />
+                <SectionTable section={summary.solidSlabs}  title="البلاطات المصمتة"  colorClass="bg-purple-50 border-purple-200 text-purple-800" />
+                <SectionTable section={summary.hollowSlabs} title="البلاطات المجوفة"  colorClass="bg-rose-50 border-rose-200 text-rose-800" />
+                <SectionTable section={summary.flatSlabs}   title="البلاطات المسطحة"  colorClass="bg-teal-50 border-teal-200 text-teal-800" />
+                <SectionTable section={summary.waffleSlabs} title="بلاطات الواف"      colorClass="bg-amber-50 border-amber-200 text-amber-800" />
+              </div>
+            )}
+
+            {/* Grand summary — always visible */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+              <h4 className="text-sm font-bold text-slate-700 mb-3">الملخص الإجمالي للمشروع</h4>
+
+              {/* Per-floor quick table */}
+              {summary.byFloor.filter((bd) => bd.totalVolume > 0).length > 1 && (
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="text-right px-3 py-2 font-semibold text-slate-600">الطابق</th>
+                        <th className="text-center px-3 py-2 font-semibold text-slate-600">خرسانة (م³)</th>
+                        <th className="text-center px-3 py-2 font-semibold text-slate-600">حديد (طن)</th>
+                        <th className="text-center px-3 py-2 font-semibold text-slate-600">التكلفة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {summary.byFloor.filter((bd) => bd.totalVolume > 0).map((bd, i) => (
+                        <tr key={bd.floor.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                          <td className="px-3 py-2 font-medium text-slate-700">{bd.floor.name}</td>
+                          <td className="px-3 py-2 text-center text-slate-600">{fmt(bd.totalVolume)}</td>
+                          <td className="px-3 py-2 text-center text-slate-600">{fmt(bd.totalSteelTons, 3)}</td>
+                          <td className="px-3 py-2 text-center text-slate-600">{fmt(bd.totalCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-800 text-white">
+                      <tr>
+                        <td className="px-3 py-2.5 font-bold">الإجمالي</td>
+                        <td className="px-3 py-2.5 text-center font-bold">{fmt(summary.totalConcreteVolume)}</td>
+                        <td className="px-3 py-2.5 text-center font-bold">{fmt(summary.totalSteelTons, 3)}</td>
+                        <td className="px-3 py-2.5 text-center font-bold">{fmt(summary.grandTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
 
               {/* Cost cards */}
-              <div className="grid grid-cols-3 gap-3 mt-4">
+              <div className="grid grid-cols-3 gap-3 mb-3">
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-blue-600 font-medium mb-1">تكلفة الخرسانة</p>
                   <p className="text-base font-bold text-blue-800">{fmt(summary.totalConcreteCost)}</p>
@@ -794,13 +958,13 @@ export default function App() {
                   <p className="text-base font-bold text-slate-800">{fmt(summary.totalSteelCost)}</p>
                 </div>
                 <div className="bg-green-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-green-600 font-medium mb-1">الإجمالي</p>
+                  <p className="text-xs text-green-600 font-medium mb-1">الإجمالي الكلي</p>
                   <p className="text-base font-bold text-green-800">{fmt(summary.grandTotal)}</p>
                 </div>
               </div>
 
-              {/* Steel weight card */}
-              <div className="mt-3 bg-slate-800 rounded-xl p-4 text-white flex justify-between items-center">
+              {/* Steel totals */}
+              <div className="bg-slate-800 rounded-xl p-4 text-white flex justify-between items-center">
                 <div>
                   <p className="text-xs text-slate-400">إجمالي الحديد</p>
                   <p className="text-2xl font-bold">{fmt(summary.totalSteelTons, 3)} <span className="text-sm font-normal text-slate-300">طن</span></p>
