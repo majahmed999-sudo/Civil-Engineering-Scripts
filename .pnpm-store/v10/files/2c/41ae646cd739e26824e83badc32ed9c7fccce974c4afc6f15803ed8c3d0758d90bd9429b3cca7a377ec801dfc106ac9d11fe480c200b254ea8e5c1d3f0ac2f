@@ -1,0 +1,23 @@
+/**
+ * Single source of hook anchor names.
+ *
+ * An anchor is a named moment in a job that `before_<anchor>` / `after_<anchor>`
+ * hook keys attach to. Which job types expose which keys is declared on the EAS
+ * servers (per-job key lists), not here: anchor existence (this registry)
+ * ≠ binding (self-declared by the carrier) ≠ availability (per-job key lists).
+ *
+ * Binding is self-declared by the anchor's carrier: EAS-generated steps carry
+ * an internal `__hook_id` stamp, and EAS build functions declare `__hookId` on
+ * their definition (any step invoking a declaring function — directly, or
+ * inside a function-group expansion — is an occurrence of the anchor). Several
+ * steps and several functions may declare the same anchor.
+ */
+export declare const HOOK_ANCHORS: readonly ["install_node_modules", "submit", "maestro_tests", "maestro_cloud", "checkout"];
+export type HookAnchorId = (typeof HOOK_ANCHORS)[number];
+export type HookKey = `before_${HookAnchorId}` | `after_${HookAnchorId}`;
+export declare const HOOK_KEYS: readonly HookKey[];
+export declare function isHookAnchorId(value: string): value is HookAnchorId;
+export declare function parseHookKey(key: string): {
+    side: 'before' | 'after';
+    anchorId: HookAnchorId;
+} | null;

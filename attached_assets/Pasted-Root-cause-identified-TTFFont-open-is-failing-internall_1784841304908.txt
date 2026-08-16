@@ -1,0 +1,25 @@
+Root cause identified: TTFFont.open() is failing internally while parsing the NameTable of the Arabic font (Cairo), and the error is being silently swallowed by jsPDF's PubSub event system. This causes the system to silently fall back to Helvetica (which has no Arabic support), which is why the output shows mojibake/garbled symbols instead of Arabic text.
+
+I need a permanent fix in three steps:
+
+1) Replace the font file:
+   - Do NOT use a Variable Font (e.g., Cairo Variable). Use only static TTF files with separate Regular and Bold weights (e.g., Cairo-Regular.ttf, Cairo-Bold.ttf from an official source like Google Fonts). Confirm it's a classic TTF (glyf table), not OTF/CFF.
+   - Verify the font file isn't corrupted (validate file size/integrity against the original source).
+   - If NameTable.parse errors persist with Cairo, switch to an alternative font with a proven track record with jsPDF addFont, such as Amiri or Noto Naskh Arabic (both static TTF).
+
+2) Fix the silent failure:
+   - Don't rely on a separate _fontReady flag. Immediately after pdf.addFont(), verify registration actually succeeded:
+     const info = pdf.getFont("Cairo", "normal");
+     if (!info?.metadata?.Unicode?.widths) throw new Error("Arabic font registration failed");
+   - Log the actual underlying error to the console (console.error) instead of letting it be swallowed, even if it still falls back to Helvetica temporarily — we need full visibility if this recurs.
+   - If font registration fails, stop PDF generation for Arabic content and show a clear error message to the user instead of producing a file with garbled text.
+
+3) After font registration succeeds, verify shaping and direction:
+   - Arabic text needs shaping (arabic-reshaper) and RTL bidi reordering (bidi-js) before being passed to doc.text() — this is a separate step that comes AFTER successful font registration, not a substitute for it.
+
+Test with the string: "عمارة صادق قبيظة - 123 م³" and confirm:
+- The actively used font is genuinely Cairo, not helvetica (log the active font name to console).
+- Characters are properly joined/shaped and rendered in correct RTL direction.
+- Copying text from the resulting PDF yields valid Arabic text, not symbols.
+
+This is unrelated to the empty-pages/pagination bug, which I'll send as a separate follow-up prompt after font issues are confirmed fixed.

@@ -1,0 +1,24 @@
+import { Platform } from '@expo/eas-build-job';
+import EasCommand from '../../commandUtils/EasCommand';
+import { AppPlatform, BuildFragment } from '../../graphql/generated';
+export default class Download extends EasCommand {
+    static description: string;
+    static flags: {
+        json: import("@oclif/core/lib/interfaces").BooleanFlag<boolean>;
+        'non-interactive': import("@oclif/core/lib/interfaces").BooleanFlag<boolean>;
+        'build-id': import("@oclif/core/lib/interfaces").OptionFlag<string | undefined, import("@oclif/core/lib/interfaces").CustomOptions>;
+        fingerprint: import("@oclif/core/lib/interfaces").OptionFlag<string | undefined, import("@oclif/core/lib/interfaces").CustomOptions>;
+        platform: import("@oclif/core/lib/interfaces").OptionFlag<Platform | undefined, import("@oclif/core/lib/interfaces").CustomOptions>;
+        'dev-client': import("@oclif/core/lib/interfaces").BooleanFlag<boolean>;
+        'all-artifacts': import("@oclif/core/lib/interfaces").BooleanFlag<boolean>;
+    };
+    static contextDefinition: {
+        projectId: import("../../commandUtils/context/ProjectIdContextField").ProjectIdContextField;
+        loggedIn: import("../../commandUtils/context/LoggedInContextField").default;
+    };
+    runAsync(): Promise<void>;
+    private downloadExtraArtifactsAsync;
+    private getBuildByIdAsync;
+    private getBuildByFingerprintAsync;
+    getPathToBuildArtifactAsync(build: BuildFragment, platform: AppPlatform): Promise<string>;
+}

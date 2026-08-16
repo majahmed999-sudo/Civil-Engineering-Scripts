@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>حاسبة الخرسانة والحديد</title>
+  <meta name="google" content="notranslate" />
     <meta name="description" content="حاسبة الخرسانة والحديد — built on Replit. Update this description to reflect the app." />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="حاسبة الخرسانة والحديد" />
@@ -18,7 +19,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" translate="no" class="notranslate"></div>
+    <script>document.documentElement.lang='ar';document.documentElement.setAttribute('dir','rtl');
+      document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('input,textarea,select').forEach(function(e){if(e.closest('.notranslate'))e.setAttribute('translate','no')})});
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

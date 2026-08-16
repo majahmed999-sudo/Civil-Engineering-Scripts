@@ -1,0 +1,2 @@
+- [PDF export via programmatic jsPDF](pdf-export-approach.md) — DOM-screenshot (html2canvas) fails with Tailwind v4 color functions; pure jsPDF drawing is the only reliable approach.
+- [Arabic font embedding in jsPDF](cairo-font-embedding.md) — Cairo TTF loaded at runtime via fetch→ArrayBuffer→base64→addFileToVFS/addFont.

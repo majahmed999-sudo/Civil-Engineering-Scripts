@@ -75,6 +75,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "arabic-reshaper": "^1.0.0",
+    "bidi-js": "^1.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1"
   }

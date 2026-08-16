@@ -145,7 +145,7 @@ export function ElementInputCard({
         <View style={{ flex: 1 }}>
           <Text style={styles.label}>المسمى</Text>
           <TextInput style={styles.input} value={element.label}
-            onChangeText={(v) => handleElementChange as any(element.id, 'label', v)}
+            onChangeText={(v) => handleElementChange(element.id, 'label', v)}
             placeholder={`مثال: ${defaultLabel}${idx + 1}`} textAlign="right"
             placeholderTextColor={colors.slate[400]} />
         </View>

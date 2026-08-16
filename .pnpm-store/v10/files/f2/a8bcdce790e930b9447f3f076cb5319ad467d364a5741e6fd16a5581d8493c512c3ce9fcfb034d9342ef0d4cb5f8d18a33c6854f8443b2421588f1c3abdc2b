@@ -1,0 +1,123 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.maybeWarnAboutUsageOveragesAsync = maybeWarnAboutUsageOveragesAsync;
+exports.classifyUsageTier = classifyUsageTier;
+exports.calculatePercentUsed = calculatePercentUsed;
+exports.createProgressBar = createProgressBar;
+exports.displayOverageWarning = displayOverageWarning;
+const tslib_1 = require("tslib");
+const chalk_1 = tslib_1.__importDefault(require("chalk"));
+const AccountQuery_1 = require("../../graphql/queries/AccountQuery");
+const log_1 = tslib_1.__importStar(require("../../log"));
+const APPROACHING_THRESHOLD_PERCENT = 80;
+async function maybeWarnAboutUsageOveragesAsync({ graphqlClient, accountId, }) {
+    try {
+        const currentDate = new Date();
+        const account = await AccountQuery_1.AccountQuery.getUsageForOverageWarningAsync(graphqlClient, accountId, currentDate);
+        if (!account) {
+            return;
+        }
+        const { name, subscription, usageMetrics } = account;
+        const buildMetrics = usageMetrics.EAS_BUILD;
+        const planMetric = buildMetrics?.planMetrics?.[0];
+        if (!planMetric || !subscription) {
+            return;
+        }
+        // Count only genuine per-worker build overage rows. `overageMetrics` can also
+        // contain rows without build metadata (e.g. rollups), which must not be summed
+        // in — otherwise the displayed "N builds beyond your credits" count is inflated.
+        const overageCount = buildMetrics.overageMetrics
+            .filter(o => o.metadata?.billingResourceClass && o.metadata?.platform)
+            .reduce((sum, o) => sum + o.value, 0);
+        const overageCostCents = buildMetrics.totalCost;
+        const hasFreePlan = subscription.name === 'Free';
+        const tier = classifyUsageTier({
+            planValue: planMetric.value,
+            limit: planMetric.limit,
+            overageCount,
+            overageCostCents,
+            hasFreePlan,
+        });
+        if (!tier) {
+            return;
+        }
+        displayOverageWarning({
+            tier,
+            name,
+            hasFreePlan,
+            planValue: planMetric.value,
+            limit: planMetric.limit,
+            overageCount,
+            overageCostCents,
+        });
+    }
+    catch (error) {
+        // Silently fail if we can't fetch usage data - we don't want to block the user's workflow
+        log_1.default.debug(`Failed to fetch usage data: ${error}`);
+    }
+}
+function classifyUsageTier({ planValue, limit, overageCount, overageCostCents, hasFreePlan, }) {
+    // Only paid plans can incur pay-as-you-go overages, and only when there is an
+    // actual billable cost. Free plans are blocked at the limit and are never charged,
+    // so they can never be in an "over" state — a nonzero overage row (e.g. a usage
+    // rollup returned by the API) must not be treated as billable usage. Without this
+    // guard, free users well below their limit were shown a "you've reached your limit,
+    // upgrade to keep building" warning.
+    if (!hasFreePlan && overageCount > 0 && overageCostCents > 0) {
+        return 'over';
+    }
+    if (limit > 0 && planValue >= limit) {
+        return 'at';
+    }
+    const percentUsed = calculatePercentUsed(planValue, limit);
+    if (percentUsed >= APPROACHING_THRESHOLD_PERCENT) {
+        return 'approaching';
+    }
+    return null;
+}
+function calculatePercentUsed(value, limit) {
+    if (limit === 0) {
+        return 0;
+    }
+    return Math.min(Math.floor((value / limit) * 100), 100);
+}
+function createProgressBar(percentUsed, width = 30) {
+    const filledWidth = Math.round((percentUsed / 100) * width);
+    const emptyWidth = width - filledWidth;
+    const filled = '█'.repeat(filledWidth);
+    const empty = '░'.repeat(emptyWidth);
+    return `${filled}${empty}`;
+}
+function formatCents(cents) {
+    return `$${(cents / 100).toFixed(2)}`;
+}
+function displayOverageWarning({ tier, name, hasFreePlan, planValue, limit, overageCount, overageCostCents, }) {
+    const billingUrl = `https://expo.dev/accounts/${name}/settings/billing`;
+    if (tier === 'approaching') {
+        const percentUsed = calculatePercentUsed(planValue, limit);
+        log_1.default.warn(chalk_1.default.bold(`You've used ${percentUsed}% of your included build credits this billing period.`) +
+            ' ' +
+            createProgressBar(percentUsed));
+        log_1.default.warn(hasFreePlan
+            ? "You won't be able to start new builds once you reach the limit. " +
+                (0, log_1.link)(billingUrl, { text: 'Upgrade your plan to continue service.', dim: false })
+            : 'Additional usage beyond your limit will be charged at pay-as-you-go rates. ' +
+                (0, log_1.link)(billingUrl, { text: 'See usage in billing.', dim: false }));
+        return;
+    }
+    // Free users are blocked at the limit, so they can't reach an "over" state.
+    // If we ever see Free + over (data inconsistency, mid-flight plan change), treat it as "at".
+    if (tier === 'at' || (tier === 'over' && hasFreePlan)) {
+        log_1.default.warn(chalk_1.default.bold("You've reached your included build credits this billing period."));
+        log_1.default.warn(hasFreePlan
+            ? 'New builds are blocked until your billing period resets. ' +
+                (0, log_1.link)(billingUrl, { text: 'Upgrade your plan to continue building.', dim: false })
+            : 'Additional builds will be charged at pay-as-you-go rates. ' +
+                (0, log_1.link)(billingUrl, { text: 'See usage in billing.', dim: false }));
+        return;
+    }
+    // tier === 'over' && paid plan
+    log_1.default.warn(chalk_1.default.bold(`You've used ${overageCount} build${overageCount === 1 ? '' : 's'} beyond your included credits this billing period (${formatCents(overageCostCents)} in overages so far).`));
+    log_1.default.warn('Additional builds continue at pay-as-you-go rates. ' +
+        (0, log_1.link)(billingUrl, { text: 'See usage in billing.', dim: false }));
+}

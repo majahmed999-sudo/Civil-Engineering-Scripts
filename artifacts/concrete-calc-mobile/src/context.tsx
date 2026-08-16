@@ -51,7 +51,8 @@ interface AppContextValue extends AppState {
   deleteProject: (id: string) => void;
   addElement: (setter: React.Dispatch<React.SetStateAction<ElementType[]>>, floorId: string) => void;
   removeElement: (elements: ElementType[], setter: React.Dispatch<React.SetStateAction<ElementType[]>>, id: string) => void;
-  handleElementChange: (setter: React.Dispatch<React.SetStateAction<ElementType[]>>, id: string, field: string, value: string) => void;
+  handleElementChange: (id: string, field: string, value: string) => void;
+  handleElementChangeWithSetter: (setter: React.Dispatch<React.SetStateAction<ElementType[]>>, id: string, field: string, value: string) => void;
   handleProjectChange: (name: string, value: string) => void;
   addFloor: () => void;
   removeFloor: (floorId: string) => void;
@@ -87,11 +88,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProject((p) => ({ ...p, [name]: value }));
   }, []);
 
-  const handleElementChange = useCallback((
+  const handleElementChangeWithSetter = useCallback((
     setter: React.Dispatch<React.SetStateAction<ElementType[]>>,
     id: string, field: string, value: string
   ) => {
     setter((prev) => prev.map((el) => el.id === id ? { ...el, [field]: value } : el));
+  }, []);
+
+  const handleElementChange = useCallback((
+    id: string, field: string, value: string
+  ) => {
+    const allSets: React.Dispatch<React.SetStateAction<ElementType[]>>[] = [
+      setFootings, setColumns, setBeams,
+      setSolidSlabs, setHollowSlabs, setFlatSlabs, setWaffleSlabs,
+    ];
+    for (const setter of allSets) {
+      let found = false;
+      setter((prev) => {
+        if (found) return prev;
+        const match = prev.find((el) => el.id === id);
+        if (!match) return prev;
+        found = true;
+        return prev.map((el) => el.id === id ? { ...el, [field]: value } : el);
+      });
+      if (found) break;
+    }
   }, []);
 
   const addElement = useCallback((
@@ -212,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMix, setIncludeSteel, setSummary,
     setActiveTab, setSlabSubTab, setResultsTab, setShowSavedPanel,
     handleCalculate, handleReset, saveProject, loadProject, deleteProject,
-    addElement, removeElement, handleElementChange, handleProjectChange,
+    addElement, removeElement, handleElementChange, handleElementChangeWithSetter, handleProjectChange,
     addFloor, removeFloor,
     allElements,
   };

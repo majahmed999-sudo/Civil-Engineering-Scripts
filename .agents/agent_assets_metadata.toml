@@ -1,0 +1,83 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "MmwihNLAaPZOsVLVAu4Ue"
+uri = "file://concrete-calc.apk"
+type = "unspecified"
+title = "حاسبة الخرسانة APK"
+
+[[outputs]]
+id = "5juz2wwD8I-2F7iZgasnB"
+uri = "file://artifacts/calculator/tmp/pdf-page1.png"
+type = "image"
+title = "PDF Page 1 Preview"
+
+[[outputs]]
+id = "ngVCBYl89JhhyOq9x2EKf"
+uri = "file://artifacts/calculator/tmp/structural-report-%D8%B9%D9%85%D8%A7%D8%B1%D8%A9-%D8%B5%D8%A7%D8%AF%D9%82-%D9%82%D8%A8%D9%8A%D8%B8%D8%A9---123-%D9%85%C2%B3.pdf"
+type = "pdf"
+title = "Generated Arabic PDF"
+
+[[outputs]]
+id = "8HvB5HEsDETlgcnP5xuPn"
+uri = "file://artifacts/calculator/qa/arabic-table-pagination-proof.pdf"
+type = "pdf"
+title = "Generated PDF — Arabic, Table, Pagination Proof"
+description = "Six-page PDF generated from a multi-row fixture with Arabic project data, section rows, BOQ rows, and final-pass page numbering."
+
+[[outputs]]
+id = "UWsXmFVXel_m9ZHzGWbb8"
+uri = "file://artifacts/calculator/qa/bug1-arabic-cover-crop.png"
+type = "image"
+title = "Bug 1 Visual Proof — Arabic Cover Crop"
+description = "High-resolution crop showing the project and client Arabic strings rendered in correct visual order."
+
+[[outputs]]
+id = "wpkkhi7RsIWb-18ToyA6T"
+uri = "file://artifacts/calculator/qa/bug2-section-table-crop.png"
+type = "image"
+title = "Bug 2 Visual Proof — Section Table Crop"
+description = "High-resolution crop showing Label, Dimensions, Qty, Volume, Steel, and Cost headers aligned with their data cells."
+
+[[outputs]]
+id = "B-690TpH-12bDLFL19xIK"
+uri = "file://artifacts/calculator/qa/proof-pages-contact-sheet.png"
+type = "image"
+title = "Bug 3 Visual Proof — All PDF Pages"
+description = "Contact sheet of all six rendered pages; every page contains content and the footer numbering runs from 1 of 6 to 6 of 6."
+
+[[outputs]]
+id = "lEfT43PGP6l30wwjd1W6B"
+uri = "file://artifacts/calculator/qa/three-rows-all-table-types-proof.pdf"
+type = "pdf"
+title = "Corrected PDF — Three Rows in Every Table Type"
+description = "Six-page rendered PDF with 27 element rows across all nine sections, 3 Floor Breakdown rows, 27 BOQ rows, Arabic cover labels, and final page numbering."
+
+[[outputs]]
+id = "SUwPLq6nHFID8xeI1xJq7"
+uri = "file://artifacts/calculator/qa/cover-labels-arabic-proof.png"
+type = "image"
+title = "Cover Label Proof"
+description = "High-resolution cover crop showing fixed English labels and separate Arabic values."
+
+[[outputs]]
+id = "SeskCXobSsCC4j6xGdSxq"
+uri = "file://artifacts/calculator/qa/floor-and-detail-row-proof.png"
+type = "image"
+title = "Floor and Detail Row Proof"
+description = "High-resolution crop showing all three Floor Breakdown rows and three rows each for the first detail sections."
+
+[[outputs]]
+id = "299KlyEBlfpZPVg6avQn7"
+uri = "file://artifacts/calculator/qa/boq-three-row-block-proof.png"
+type = "image"
+title = "BOQ Row Proof"
+description = "High-resolution BOQ crop showing first and later rows for multiple section blocks with stable column order."
+
+[[outputs]]
+id = "yP6HNE4Wxb86nZ66T9w3s"
+uri = "file://artifacts/calculator/qa/three-rows-proof-contact-sheet.png"
+type = "image"
+title = "Complete Six-Page Render Proof"
+description = "Contact sheet of every rendered page in the comprehensive fixture."

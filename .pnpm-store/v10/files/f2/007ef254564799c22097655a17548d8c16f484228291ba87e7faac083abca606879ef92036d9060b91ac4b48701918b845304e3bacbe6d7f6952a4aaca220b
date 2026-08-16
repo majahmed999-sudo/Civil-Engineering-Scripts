@@ -1,0 +1,10 @@
+import { DeviceRunSessionByIdQuery, DeviceRunSessionType } from '../graphql/generated';
+type DeviceRunSessionByIdResult = DeviceRunSessionByIdQuery['deviceRunSessions']['byId'];
+export type DeviceRunSessionRemoteConfig = NonNullable<DeviceRunSessionByIdResult['remoteConfig']>;
+export declare const DEVICE_RUN_SESSION_TYPE_FLAG_VALUES: Record<DeviceRunSessionType, string>;
+export declare const DEVICE_RUN_SESSION_TYPE_BY_FLAG_VALUE: Record<string, DeviceRunSessionType>;
+export declare function deviceRunSessionTypeToFlagValue(type: DeviceRunSessionType): string;
+export declare function getRemoteSessionEnvironmentVariables(remoteConfig: DeviceRunSessionRemoteConfig): Record<string, string>;
+type RemoteSessionInstructionsConfigType = 'env' | 'dotenv';
+export declare function formatRemoteSessionInstructions(remoteConfig: DeviceRunSessionRemoteConfig, configType: RemoteSessionInstructionsConfigType): string;
+export {};

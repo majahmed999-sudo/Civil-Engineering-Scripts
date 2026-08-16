@@ -1,0 +1,44 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.HOOK_KEYS = exports.HOOK_ANCHORS = void 0;
+exports.isHookAnchorId = isHookAnchorId;
+exports.parseHookKey = parseHookKey;
+/**
+ * Single source of hook anchor names.
+ *
+ * An anchor is a named moment in a job that `before_<anchor>` / `after_<anchor>`
+ * hook keys attach to. Which job types expose which keys is declared on the EAS
+ * servers (per-job key lists), not here: anchor existence (this registry)
+ * ≠ binding (self-declared by the carrier) ≠ availability (per-job key lists).
+ *
+ * Binding is self-declared by the anchor's carrier: EAS-generated steps carry
+ * an internal `__hook_id` stamp, and EAS build functions declare `__hookId` on
+ * their definition (any step invoking a declaring function — directly, or
+ * inside a function-group expansion — is an occurrence of the anchor). Several
+ * steps and several functions may declare the same anchor.
+ */
+exports.HOOK_ANCHORS = [
+    'install_node_modules',
+    'submit',
+    'maestro_tests',
+    'maestro_cloud',
+    'checkout',
+];
+exports.HOOK_KEYS = exports.HOOK_ANCHORS.flatMap((anchor) => [
+    `before_${anchor}`,
+    `after_${anchor}`,
+]);
+function isHookAnchorId(value) {
+    return exports.HOOK_ANCHORS.some(anchor => anchor === value);
+}
+function parseHookKey(key) {
+    const match = key.match(/^(before|after)_(.+)$/);
+    if (!match) {
+        return null;
+    }
+    const [, side, anchorId] = match;
+    if (!isHookAnchorId(anchorId)) {
+        return null;
+    }
+    return { side: side, anchorId };
+}
