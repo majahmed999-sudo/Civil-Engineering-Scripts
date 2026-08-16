@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+# Replit backups
+node_modules.bak/
+node_modules.bak.root/
