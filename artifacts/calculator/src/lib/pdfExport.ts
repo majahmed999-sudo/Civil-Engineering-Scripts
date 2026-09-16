@@ -170,6 +170,34 @@ function drawText(pdf: jsPDF, text: string | string[], x: number, y: number, opt
   (pdf as any).text(processed, x, y, options);
 }
 
+/**
+ * Draw an English label and its value as independent text objects.
+ * The label never enters the Arabic bidi pipeline, so a mixed
+ * English/Arabic line cannot reorder the label around the value.
+ */
+function drawSeparatedLabelValue(
+  pdf: jsPDF,
+  label: string,
+  value: string,
+  labelX: number,
+  valueX: number,
+  y: number,
+  labelSize: number,
+  valueSize: number,
+  labelColor: [number, number, number],
+  valueColor: [number, number, number],
+) {
+  _useFont(pdf, "bold");
+  pdf.setFontSize(labelSize);
+  pdf.setTextColor(...labelColor);
+  (pdf as any).text(`${label}:`, labelX, y, { align: "left" });
+
+  _useFont(pdf, "normal");
+  pdf.setFontSize(valueSize);
+  pdf.setTextColor(...valueColor);
+  drawText(pdf, value, valueX, y, { align: "left" });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LAYOUT CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -238,23 +266,26 @@ function drawPageHeader(pdf: jsPDF, pageNum: number, totalPages: number, project
   pdf.setTextColor(...C.mutedGray);
   drawText(pdf, "Structural Quantity Report", MARGIN + 14, 16);
 
-  // Right-aligned meta
-  pdf.setFontSize(6.5);
-  _useFont(pdf, "normal");
-  pdf.setTextColor(...C.mutedGray);
-  let rx = PAGE_W - MARGIN;
-  const metaItems: string[] = [];
-  if (project.projectName) metaItems.push(project.projectName);
-  metaItems.push(dateStr);
-  const metaStr = metaItems.join("  |  ");
-  drawText(pdf, metaStr, rx, 8, { align: "right" });
-
-  pdf.setFontSize(6);
-  const metaItems2: string[] = [];
-  if (project.engineerName) metaItems2.push(`Engineer: ${project.engineerName}`);
-  if (project.clientName) metaItems2.push(`Client: ${project.clientName}`);
-  const metaStr2 = metaItems2.join("  |  ");
-  if (metaStr2) drawText(pdf, metaStr2, rx, 16, { align: "right" });
+  // Keep every English header label separate from its value. In particular,
+  // never pass "Engineer: <Arabic>" or "Client: <Arabic>" as one bidi string.
+  const metaLabelX = PAGE_W - MARGIN - 68;
+  const metaValueX = metaLabelX + 23;
+  const metaLabelColor = C.mutedGray;
+  const metaValueColor = C.mutedGray;
+  let metaY = 7;
+  if (project.projectName) {
+    drawSeparatedLabelValue(pdf, "Project", project.projectName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
+    metaY += 6;
+  }
+  drawSeparatedLabelValue(pdf, "Date", dateStr, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
+  metaY += 6;
+  if (project.engineerName) {
+    drawSeparatedLabelValue(pdf, "Engineer", project.engineerName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
+    metaY += 6;
+  }
+  if (project.clientName) {
+    drawSeparatedLabelValue(pdf, "Client", project.clientName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
+  }
 
   // Divider line below header
   pdf.setDrawColor(...C.goldAccent);
@@ -286,6 +317,20 @@ type OrderedTableColumn = {
   w: number;
   align: "left" | "center" | "right";
 };
+
+function drawTableCells(
+  pdf: jsPDF,
+  y: number,
+  columns: OrderedTableColumn[],
+  values: Record<string, string>,
+) {
+  let cx = MARGIN;
+  columns.forEach((c) => {
+    const tx = c.align === "center" ? cx + c.w / 2 : c.align === "right" ? cx + c.w - 1 : cx + 1.5;
+    drawText(pdf, values[c.key] ?? "", tx, y, { align: c.align });
+    cx += c.w;
+  });
+}
 
 function drawTableHeader(pdf: jsPDF, y: number, cols: OrderedTableColumn[], headers: string[]) {
   pdf.setFillColor(...C.headerBg);
@@ -324,32 +369,11 @@ function drawTableRow(
     _useFont(pdf, "normal");
     pdf.setFontSize(6.5);
   }
-  let cx = MARGIN;
-  columns.forEach((c) => {
-    const tx = c.align === "center" ? cx + c.w / 2 : c.align === "right" ? cx + c.w - 1 : cx + 1.5;
-    drawText(pdf, values[c.key] ?? "", tx, y + rowH * 0.7, { align: c.align });
-    cx += c.w;
-  });
+  drawTableCells(pdf, y + rowH * 0.7, columns, values);
   // Bottom border
   pdf.setDrawColor(...C.softDivider);
   pdf.setLineWidth(0.15);
   pdf.line(MARGIN, y + rowH, MARGIN + CONTENT_W, y + rowH);
-}
-
-/**
- * Draw every row from the same keyed column schema, including index 0.
- * No row uses a separate first-row/continuation-row code path.
- */
-function drawOrderedTableRow(
-  pdf: jsPDF,
-  y: number,
-  rowH: number,
-  columns: OrderedTableColumn[],
-  values: Record<string, string>,
-  isEven: boolean,
-  isFooter = false,
-) {
-  drawTableRow(pdf, y, rowH, columns, values, isEven, isFooter);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -413,16 +437,18 @@ async function drawCoverPage(pdf: jsPDF, project: ProjectInfo, dateStr: string):
     const startX = 70;
     details.forEach(([label, val], i) => {
       const dy = detailY + i * 8;
-      _useFont(pdf, "bold");
-      pdf.setFontSize(8);
-      pdf.setTextColor(...C.goldAccent);
-      // Keep the English label outside the Arabic shaping/bidi pipeline.
-      // The value is a separate draw call at a fixed x-position.
-      (pdf as any).text(`${label}:`, startX, dy, { align: "left" });
-      _useFont(pdf, "normal");
-      pdf.setTextColor(...C.white);
-      pdf.setFontSize(8.5);
-      drawText(pdf, val, startX + maxLabelW + 5, dy, { align: "left" });
+      drawSeparatedLabelValue(
+        pdf,
+        label,
+        val,
+        startX,
+        startX + maxLabelW + 5,
+        dy,
+        8,
+        8.5,
+        C.goldAccent,
+        C.white,
+      );
     });
   }
 
@@ -653,7 +679,7 @@ function drawSectionTable(
   section.elements.forEach((er, ri) => {
     y = checkPageBreak(pdf, y, ROW_H + 1, HEADER_BAND_H + 4, drawHeader);
     const cost = er.totalVolume * parseFloat(project.concretePricePerM3 || "0") + (er.steelKg / 1000) * parseFloat(project.steelPricePerTon || "0");
-    drawOrderedTableRow(pdf, y, ROW_H, elementCols, {
+    drawTableRow(pdf, y, ROW_H, elementCols, {
       label: er.label || "—",
       dimensions: `${er.dim1.toFixed(2)}×${er.dim2.toFixed(2)}×${er.dim3.toFixed(2)}`,
       quantity: String(er.quantity),
@@ -667,7 +693,7 @@ function drawSectionTable(
   // Footer row
   y = checkPageBreak(pdf, y, ROW_H + 1, HEADER_BAND_H + 4, drawHeader);
   const totalCost = section.total;
-  drawOrderedTableRow(pdf, y, ROW_H, elementCols, {
+  drawTableRow(pdf, y, ROW_H, elementCols, {
     label: "TOTAL",
     dimensions: "",
     quantity: "",
@@ -797,12 +823,7 @@ function drawBOQ(
       cost: fmt(item.costTotal, 2),
     };
 
-    let cx = MARGIN;
-    cols.forEach((col) => {
-      const tx = col.align === "center" ? cx + col.w / 2 : col.align === "right" ? cx + col.w - 1 : cx + 1;
-      drawText(pdf, values[col.key] ?? "", tx, rowY, { align: col.align });
-      cx += col.w;
-    });
+    drawTableCells(pdf, rowY, cols, values);
     rowY += ROW_H;
     rowIdx++;
   }
