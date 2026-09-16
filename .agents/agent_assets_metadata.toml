@@ -6,18 +6,21 @@ id = "MmwihNLAaPZOsVLVAu4Ue"
 uri = "file://concrete-calc.apk"
 type = "unspecified"
 title = "حاسبة الخرسانة APK"
+logical_id = "e590677d-6f98-4f41-8b33-f30c531fd7d8"
 
 [[outputs]]
 id = "5juz2wwD8I-2F7iZgasnB"
 uri = "file://artifacts/calculator/tmp/pdf-page1.png"
 type = "image"
 title = "PDF Page 1 Preview"
+logical_id = "2049e6da-1683-4d6d-9d3e-2f399d3a5d4d"
 
 [[outputs]]
 id = "ngVCBYl89JhhyOq9x2EKf"
 uri = "file://artifacts/calculator/tmp/structural-report-%D8%B9%D9%85%D8%A7%D8%B1%D8%A9-%D8%B5%D8%A7%D8%AF%D9%82-%D9%82%D8%A8%D9%8A%D8%B8%D8%A9---123-%D9%85%C2%B3.pdf"
 type = "pdf"
 title = "Generated Arabic PDF"
+logical_id = "a9a7a064-3dfc-4ae4-b3f8-7d697aae5b57"
 
 [[outputs]]
 id = "8HvB5HEsDETlgcnP5xuPn"
@@ -25,6 +28,7 @@ uri = "file://artifacts/calculator/qa/arabic-table-pagination-proof.pdf"
 type = "pdf"
 title = "Generated PDF — Arabic, Table, Pagination Proof"
 description = "Six-page PDF generated from a multi-row fixture with Arabic project data, section rows, BOQ rows, and final-pass page numbering."
+logical_id = "20699761-8644-40cb-b09e-25446a0f7349"
 
 [[outputs]]
 id = "UWsXmFVXel_m9ZHzGWbb8"
@@ -32,6 +36,7 @@ uri = "file://artifacts/calculator/qa/bug1-arabic-cover-crop.png"
 type = "image"
 title = "Bug 1 Visual Proof — Arabic Cover Crop"
 description = "High-resolution crop showing the project and client Arabic strings rendered in correct visual order."
+logical_id = "b2f56171-afd9-4dc6-942e-d361ff606f79"
 
 [[outputs]]
 id = "wpkkhi7RsIWb-18ToyA6T"
@@ -39,6 +44,7 @@ uri = "file://artifacts/calculator/qa/bug2-section-table-crop.png"
 type = "image"
 title = "Bug 2 Visual Proof — Section Table Crop"
 description = "High-resolution crop showing Label, Dimensions, Qty, Volume, Steel, and Cost headers aligned with their data cells."
+logical_id = "444a6808-e386-454f-9728-5856e68c1ba5"
 
 [[outputs]]
 id = "B-690TpH-12bDLFL19xIK"
@@ -46,6 +52,7 @@ uri = "file://artifacts/calculator/qa/proof-pages-contact-sheet.png"
 type = "image"
 title = "Bug 3 Visual Proof — All PDF Pages"
 description = "Contact sheet of all six rendered pages; every page contains content and the footer numbering runs from 1 of 6 to 6 of 6."
+logical_id = "ce4ccdf2-b464-45e4-b4b8-5fa835dad439"
 
 [[outputs]]
 id = "lEfT43PGP6l30wwjd1W6B"
@@ -53,6 +60,7 @@ uri = "file://artifacts/calculator/qa/three-rows-all-table-types-proof.pdf"
 type = "pdf"
 title = "Corrected PDF — Three Rows in Every Table Type"
 description = "Six-page rendered PDF with 27 element rows across all nine sections, 3 Floor Breakdown rows, 27 BOQ rows, Arabic cover labels, and final page numbering."
+logical_id = "64adba03-7377-4de5-92b5-b7902737e220"
 
 [[outputs]]
 id = "SUwPLq6nHFID8xeI1xJq7"
@@ -60,6 +68,7 @@ uri = "file://artifacts/calculator/qa/cover-labels-arabic-proof.png"
 type = "image"
 title = "Cover Label Proof"
 description = "High-resolution cover crop showing fixed English labels and separate Arabic values."
+logical_id = "6726775c-b777-4371-a03d-34f133269619"
 
 [[outputs]]
 id = "SeskCXobSsCC4j6xGdSxq"
@@ -67,6 +76,7 @@ uri = "file://artifacts/calculator/qa/floor-and-detail-row-proof.png"
 type = "image"
 title = "Floor and Detail Row Proof"
 description = "High-resolution crop showing all three Floor Breakdown rows and three rows each for the first detail sections."
+logical_id = "a2cdc5ac-2f12-473f-beb0-8d5b96d4c37f"
 
 [[outputs]]
 id = "299KlyEBlfpZPVg6avQn7"
@@ -74,6 +84,7 @@ uri = "file://artifacts/calculator/qa/boq-three-row-block-proof.png"
 type = "image"
 title = "BOQ Row Proof"
 description = "High-resolution BOQ crop showing first and later rows for multiple section blocks with stable column order."
+logical_id = "c030a886-c156-4826-8728-7104c229f606"
 
 [[outputs]]
 id = "yP6HNE4Wxb86nZ66T9w3s"
@@ -81,3 +92,88 @@ uri = "file://artifacts/calculator/qa/three-rows-proof-contact-sheet.png"
 type = "image"
 title = "Complete Six-Page Render Proof"
 description = "Contact sheet of every rendered page in the comprehensive fixture."
+logical_id = "47668378-9942-4d2b-a1fc-9701b874865c"
+
+[[outputs]]
+id = "Fb3_BGLnyrVg_paaaH6yh"
+uri = "file://artifacts/calculator/qa/current-category-transition-proof.pdf"
+type = "pdf"
+title = "Final PDF category-transition proof"
+description = "Six-page PDF fixture with 27 detail rows, 3 Floor Breakdown rows, 27 BOQ rows, Arabic cover metadata, and multiple section/type transitions."
+logical_id = "104b26c9-3d5f-4f7b-87be-4a6708b50a5e"
+content_hash = "sha256:6e9eaf510a2bc43094a679a70e613db5239149ce7d4dbb20bd0e79e5004f2c99"
+size = 296131
+mtime_ms = 1789565380247
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/104b26c9-3d5f-4f7b-87be-4a6708b50a5e/30efc462-3f68-4d7f-8ba2-9a890af083ba"
+storage_version_token = "1789565606063677"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "tEoC-6TZiNq7wnppE_gtN"
+uri = "file://artifacts/calculator/qa/current-cover-labels.png"
+type = "image"
+title = "Cover label crop"
+description = "Project, Client, Engineer, and Date lines rendered with independent English labels and Arabic values."
+logical_id = "0655a4fa-4713-4652-ac30-5259b8edd76b"
+content_hash = "sha256:144154ebaa6963c0974a008721ddd962279f9dfcd474a6821324b4aa82b7339c"
+size = 29087
+mtime_ms = 1789565496342
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/0655a4fa-4713-4652-ac30-5259b8edd76b/6e821527-eb7f-4099-abc9-58ac7070ec22"
+storage_version_token = "1789565607488305"
+content_type = "image/png"
+
+[[outputs]]
+id = "ku-Z0iRxHAvEPdxVyp2Fb"
+uri = "file://artifacts/calculator/qa/current-floor-breakdown.png"
+type = "image"
+title = "Floor Breakdown crop"
+description = "Floor 1–3 rows visibly ordered as Floor, Concrete, Steel, Cost."
+logical_id = "0cd7355f-6178-4e25-b672-2aea3ba536fa"
+content_hash = "sha256:a0e7bc670ba5c8f98a4a1a42200ec64fb8a003516e702e1fd16a44dbf8b54db3"
+size = 31684
+mtime_ms = 1789565496346
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/0cd7355f-6178-4e25-b672-2aea3ba536fa/09ee9a0f-c011-4e39-ae9b-a4155e1744e5"
+storage_version_token = "1789565608819483"
+content_type = "image/png"
+
+[[outputs]]
+id = "L7IpoZQqb9ctSxKP4EWDW"
+uri = "file://artifacts/calculator/qa/current-section-transitions.png"
+type = "image"
+title = "Section first-row crop"
+description = "Isolated Footings and Strip Footings show identical column order for each first and subsequent data row."
+logical_id = "465035b9-b99e-4b3d-b33b-dc7d86f855b8"
+content_hash = "sha256:5eccaab5845b574d2316ce8d67663af33bade9519a38565ae8f495fe2d740f10"
+size = 103870
+mtime_ms = 1789565496354
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/465035b9-b99e-4b3d-b33b-dc7d86f855b8/13119fd4-522d-43e5-bb05-ccacfaed6619"
+storage_version_token = "1789565610187208"
+content_type = "image/png"
+
+[[outputs]]
+id = "HYNZy0b-EVbHVN-uZzJMW"
+uri = "file://artifacts/calculator/qa/current-boq-type-transitions.png"
+type = "image"
+title = "BOQ type-transition crop"
+description = "All BOQ rows show the same order across F, SF, RF, C, B, SS, HS, FS, and WS groups."
+logical_id = "a323c857-0802-4e9d-88f8-24d190ca9c0c"
+content_hash = "sha256:6a123798638863fec1f4b658730114146c378557e4511edd173e817df2688cac"
+size = 234628
+mtime_ms = 1789565496359
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/a323c857-0802-4e9d-88f8-24d190ca9c0c/b64dfe62-260f-4e5c-9ff5-451aea505334"
+storage_version_token = "1789565611562127"
+content_type = "image/png"
+
+[[outputs]]
+id = "N6inYGvwsMwrjMZpX2oOQ"
+uri = "file://artifacts/calculator/qa/current-page-header-labels.png"
+type = "image"
+title = "Page-header metadata crop"
+description = "Page header Project, Date, Engineer, and Client labels remain separate from their values."
+logical_id = "e4d0e7c2-a33e-45d2-a7ec-4e3c32c0d1d5"
+content_hash = "sha256:d763668907bb4f1a07159c5bbc2e3e47450945afd3296cef4f5726a534cb9f8a"
+size = 15416
+mtime_ms = 1789565496363
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:815d6ab6-b493-48e2-ab7d-c914bbd149d7/e4d0e7c2-a33e-45d2-a7ec-4e3c32c0d1d5/6bd3bc85-bcef-4246-b163-2927a675e3bc"
+storage_version_token = "1789565612919411"
+content_type = "image/png"
