@@ -1,3 +1,4 @@
 - [PDF export via programmatic jsPDF](pdf-export-approach.md) — DOM-screenshot (html2canvas) fails with Tailwind v4 color functions; pure jsPDF drawing is the only reliable approach.
 - [Arabic font embedding in jsPDF](cairo-font-embedding.md) — verified Arabic TTFs must be loaded at runtime and checked for parsed Unicode width metadata.
 - [PDF bidi and table layout](pdf-bidi-and-table-layout.md) — keep English labels separate from Arabic values and use one keyed cell-position renderer for every row type.
+- [Workspace production install](workspace-production-install.md) — publishing resolves the full pnpm workspace before the artifact-specific static build.
