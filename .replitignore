@@ -3,3 +3,19 @@
 
 # No need to store the pnpm store twice.
 .local
+
+# Local dependencies and package-manager caches are recreated during publishing.
+node_modules
+**/node_modules
+node_modules.bak*
+**/node_modules.bak*
+.pnpm-store
+.cache
+
+# Regenerable native build output from the separate mobile artifact.
+artifacts/concrete-calc-mobile/.expo
+artifacts/concrete-calc-mobile/android/.gradle
+artifacts/concrete-calc-mobile/android/.kotlin
+artifacts/concrete-calc-mobile/android/build
+artifacts/concrete-calc-mobile/android/app/build
+artifacts/concrete-calc-mobile/android/app/.cxx
