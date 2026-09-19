@@ -190,6 +190,12 @@ interface BOQItem {
 }
 
 const DEFAULT_FLOOR_ID = "floor-ground";
+const DEFAULT_ELEMENT_LABEL = "عنصر";
+
+function normalizeElementLabel(label: string): string {
+  const value = label.trim();
+  return value || DEFAULT_ELEMENT_LABEL;
+}
 
 const newElement = (floorId: string = DEFAULT_FLOOR_ID): ElementType => ({
   id: crypto.randomUUID(),
@@ -283,7 +289,7 @@ function computeSection(
       ? Math.PI * (d1 / 2) * (d1 / 2) * d3 * concreteEfficiency
       : d1 * d2 * d3 * concreteEfficiency;
     const totalVolume = volumeEach * q;
-    return { id: e.id, label: e.label || "عنصر", dim1: d1, dim2: isCircular ? d1 : d2, dim3: d3, quantity: q, volumeEach, totalVolume, steelKg: totalVolume * ratio };
+    return { id: e.id, label: normalizeElementLabel(e.label), dim1: d1, dim2: isCircular ? d1 : d2, dim3: d3, quantity: q, volumeEach, totalVolume, steelKg: totalVolume * ratio };
   });
   const totalVolume = results.reduce((s, r) => s + r.totalVolume, 0);
   const totalSteelKg = results.reduce((s, r) => s + r.steelKg, 0);
@@ -388,7 +394,7 @@ function computeBOQ(
       const steelCost    = (er.steelKg / 1000) * sp;
       items.push({
         no: no++, typeLabel, typeCode, floorName,
-        label: er.label || typeCode + no,
+        label: normalizeElementLabel(er.label),
         dim1: er.dim1, dim2: er.dim2, dim3: er.dim3,
         qty: er.quantity,
         volEach: er.volumeEach,

@@ -30,6 +30,19 @@ interface BOQItem {
   label: string; dim1: number; dim2: number; dim3: number;
   qty: number; volEach: number; volTotal: number; steelKgTotal: number; costTotal: number;
 }
+
+const DEFAULT_ELEMENT_LABEL = "عنصر";
+
+/**
+ * Keep the fallback label at the same boundary as user-entered labels.
+ * This prevents an empty source label from taking a different path through
+ * table rendering than a non-empty custom label.
+ */
+function normalizeElementLabel(label: string | undefined | null): string {
+  const value = typeof label === "string" ? label.trim() : "";
+  return value || DEFAULT_ELEMENT_LABEL;
+}
+
 interface MixDesign {
   cement: string; sand: string; gravel: string;
   compactionFactor: string; bagWeightKg: string;
@@ -198,6 +211,21 @@ function drawSeparatedLabelValue(
   drawText(pdf, value, valueX, y, { align: "left" });
 }
 
+type ReportMetadataEntry = [label: "Project" | "Client" | "Engineer" | "Date", value: string];
+
+/**
+ * One metadata source for the cover and every repeated page header.
+ * The order is intentionally fixed and must not be inferred from layout.
+ */
+function getReportMetadata(project: ProjectInfo, dateStr: string): ReportMetadataEntry[] {
+  return [
+    ...(project.projectName ? [["Project", project.projectName] as ReportMetadataEntry] : []),
+    ...(project.clientName ? [["Client", project.clientName] as ReportMetadataEntry] : []),
+    ...(project.engineerName ? [["Engineer", project.engineerName] as ReportMetadataEntry] : []),
+    ["Date", dateStr],
+  ];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LAYOUT CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,23 +297,23 @@ function drawPageHeader(pdf: jsPDF, pageNum: number, totalPages: number, project
   // Keep every English header label separate from its value. In particular,
   // never pass "Engineer: <Arabic>" or "Client: <Arabic>" as one bidi string.
   const metaLabelX = PAGE_W - MARGIN - 68;
-  const metaValueX = metaLabelX + 23;
+  const metaValueX = metaLabelX + 28;
   const metaLabelColor = C.mutedGray;
   const metaValueColor = C.mutedGray;
-  let metaY = 7;
-  if (project.projectName) {
-    drawSeparatedLabelValue(pdf, "Project", project.projectName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
-    metaY += 6;
-  }
-  drawSeparatedLabelValue(pdf, "Date", dateStr, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
-  metaY += 6;
-  if (project.engineerName) {
-    drawSeparatedLabelValue(pdf, "Engineer", project.engineerName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
-    metaY += 6;
-  }
-  if (project.clientName) {
-    drawSeparatedLabelValue(pdf, "Client", project.clientName, metaLabelX, metaValueX, metaY, 5.2, 5.4, metaLabelColor, metaValueColor);
-  }
+  getReportMetadata(project, dateStr).forEach(([label, value], index) => {
+    drawSeparatedLabelValue(
+      pdf,
+      label,
+      value,
+      metaLabelX,
+      metaValueX,
+      7 + index * 6,
+      5.2,
+      5.4,
+      metaLabelColor,
+      metaValueColor,
+    );
+  });
 
   // Divider line below header
   pdf.setDrawColor(...C.goldAccent);
@@ -327,7 +355,10 @@ function drawTableCells(
   let cx = MARGIN;
   columns.forEach((c) => {
     const tx = c.align === "center" ? cx + c.w / 2 : c.align === "right" ? cx + c.w - 1 : cx + 1.5;
-    drawText(pdf, values[c.key] ?? "", tx, y, { align: c.align });
+    const value = c.key === "label"
+      ? normalizeElementLabel(values[c.key])
+      : values[c.key] ?? "";
+    drawText(pdf, value, tx, y, { align: c.align });
     cx += c.w;
   });
 }
@@ -424,13 +455,7 @@ async function drawCoverPage(pdf: jsPDF, project: ProjectInfo, dateStr: string):
   pdf.setFontSize(9);
   pdf.setTextColor(...C.mutedGray);
 
-  const details: [string, string][] = [
-    ...(project.projectName ? [["Project", project.projectName] as [string, string]] : []),
-    ...(project.clientName ? [["Client", project.clientName] as [string, string]] : []),
-    ...(project.engineerName ? [["Engineer", project.engineerName] as [string, string]] : []),
-    ["Date", dateStr],
-    ["Version", "1.0"],
-  ];
+  const details = getReportMetadata(project, dateStr);
 
   if (details.length > 0) {
     const maxLabelW = Math.max(...details.map((d) => pdf.getTextWidth(d[0] + ":")));
@@ -680,7 +705,7 @@ function drawSectionTable(
     y = checkPageBreak(pdf, y, ROW_H + 1, HEADER_BAND_H + 4, drawHeader);
     const cost = er.totalVolume * parseFloat(project.concretePricePerM3 || "0") + (er.steelKg / 1000) * parseFloat(project.steelPricePerTon || "0");
     drawTableRow(pdf, y, ROW_H, elementCols, {
-      label: er.label || "—",
+      label: normalizeElementLabel(er.label),
       dimensions: `${er.dim1.toFixed(2)}×${er.dim2.toFixed(2)}×${er.dim3.toFixed(2)}`,
       quantity: String(er.quantity),
       volume: fmt(er.totalVolume, 3),
