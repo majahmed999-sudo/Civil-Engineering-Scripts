@@ -484,26 +484,24 @@ async function drawCoverPage(pdf: jsPDF, project: ProjectInfo, dateStr: string):
     });
   }
 
-  // Gold divider before prepared by
+  // Small developer credit at the bottom of the cover
+  const creditY = PAGE_H - 19;
   pdf.setDrawColor(...C.goldAccent);
-  pdf.setLineWidth(0.4);
-  const divLen2 = 40;
-  pdf.line((PAGE_W - divLen2) / 2, detailY + details.length * 8 + 14, (PAGE_W + divLen2) / 2, detailY + details.length * 8 + 14);
-
-  // Prepared by section
-  const prepY = detailY + details.length * 8 + 24;
+  pdf.setLineWidth(0.3);
+  pdf.line((PAGE_W - 30) / 2, creditY - 6, (PAGE_W + 30) / 2, creditY - 6);
   _useFont(pdf, "normal");
-  pdf.setFontSize(8);
+  pdf.setFontSize(6.5);
   pdf.setTextColor(...C.mutedGray);
-  drawText(pdf, "Prepared by", PAGE_W / 2, prepY, { align: "center" });
+  drawText(pdf, "Developed by", PAGE_W / 2, creditY - 1.5, { align: "center" });
   _useFont(pdf, "bold");
-  pdf.setFontSize(12);
+  pdf.setFontSize(8.5);
   pdf.setTextColor(...C.goldAccent);
-  drawText(pdf, "Eng. Majid Alqobidhah", PAGE_W / 2, prepY + 10, { align: "center" });
+  drawText(pdf, "Eng. Majid Alqobidhah", PAGE_W / 2, creditY + 3.5, { align: "center" });
   _useFont(pdf, "normal");
-  pdf.setFontSize(7);
+  pdf.setFontSize(6.5);
   pdf.setTextColor(...C.mutedGray);
-  drawText(pdf, "Professional Civil Engineer", PAGE_W / 2, prepY + 18, { align: "center" });
+  drawText(pdf, "Civil Engineer", PAGE_W / 2, creditY + 8, { align: "center" });
+  const prepY = detailY + details.length * 8 + 24;
 
   // Bottom gold line
   pdf.setFillColor(...C.goldAccent);
@@ -734,6 +732,17 @@ function drawSectionTable(
     cost: fmt(totalCost, 2),
   }, false, true);
   y += ROW_H + 3;
+
+  const rawVol = section.elements.reduce((s, e) => s + e.dim1 * e.dim2 * e.dim3 * e.quantity, 0);
+  const eff = rawVol > 0 ? section.totalVolume / rawVol : 1;
+  if (Math.abs(eff - 1) > 0.001) {
+    y = checkPageBreak(pdf, y, 6, HEADER_BAND_H + 4, drawHeader);
+    _useFont(pdf, "normal");
+    pdf.setFontSize(6);
+    pdf.setTextColor(...C.bodyText);
+    drawText(pdf, `Note: net concrete volume = L × W × T × ${eff.toFixed(2)} (void ratio of hollow / waffle slabs)`, MARGIN, y);
+    y += 5;
+  }
 
   return y;
 }

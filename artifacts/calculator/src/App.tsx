@@ -496,6 +496,13 @@ function SectionTable({ section, title, colorClass }: {
   return (
     <div>
       <h4 className="text-xs font-bold text-slate-600 uppercase mb-2">{title}</h4>
+      {(() => {
+        const raw = section.elements.reduce((s, e) => s + e.dim1 * e.dim2 * e.dim3 * e.quantity, 0);
+        const eff = raw > 0 ? section.totalVolume / raw : 1;
+        return Math.abs(eff - 1) > 0.001
+          ? <p className="text-xs text-slate-400 mb-2">ℹ️ الحجم الصافي = الطول × العرض × السمك × {eff.toFixed(2)} (نسبة الفراغات)</p>
+          : null;
+      })()}
       <div className="rounded-lg border border-slate-200 overflow-hidden mb-1">
         <table className="w-full text-xs">
           <thead className="bg-slate-50">
@@ -1620,7 +1627,7 @@ export default function App() {
               )}
 
               {/* Cost cards */}
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-blue-600 font-medium mb-1">تكلفة الخرسانة</p>
                   <p className="text-base font-bold text-blue-800">{fmt(summary.totalConcreteCost)}</p>
