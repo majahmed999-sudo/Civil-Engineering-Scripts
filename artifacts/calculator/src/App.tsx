@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { exportStructuralReport } from "./lib/pdfExport";
+import { REBAR_TABLE, rebarCount } from "./lib/rebar";
 
 type TabId = "footings" | "columns" | "beams" | "slabs";
 type SlabSubType = "solid" | "hollow" | "flat" | "waffle";
@@ -1655,6 +1656,37 @@ export default function App() {
               </div>
             </div>
 
+            {includeSteel && summary.totalSteelKg > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <h4 className="text-sm font-bold text-slate-700 mb-1">عدد أسياخ الحديد (تقريبي)</h4>
+                <p className="text-xs text-slate-400 mb-3">
+                  لإجمالي {fmt(summary.totalSteelKg, 1)} كجم. العدد لكل قطر على افتراض أن كامل الكمية بهذا القطر وحده (مقرّب لأعلى، دون هدر أو وصلات). التوزيع الفعلي حسب التصميم الإنشائي.
+                </p>
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-800 text-white">
+                      <tr>
+                        <th className="px-2 py-2 text-center font-semibold">القطر (مم)</th>
+                        <th className="px-2 py-2 text-center font-semibold">الطول (م)</th>
+                        <th className="px-2 py-2 text-center font-semibold">وزن السيخ (كجم)</th>
+                        <th className="px-2 py-2 text-center font-semibold">العدد (سيخ)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {REBAR_TABLE.map((r, i) => (
+                        <tr key={`${r.dia}-${r.lengthM}`} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                          <td className="px-2 py-1.5 text-center font-semibold text-slate-700">{r.dia}</td>
+                          <td className="px-2 py-1.5 text-center text-slate-500">{r.lengthM}</td>
+                          <td className="px-2 py-1.5 text-center text-slate-500">{r.kgPerBar}</td>
+                          <td className="px-2 py-1.5 text-center font-bold text-slate-800">{fmt(rebarCount(summary.totalSteelKg, r.kgPerBar), 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Mix Design Results */}
             {(() => {
               const mr = computeMix(summary.totalConcreteVolume, mix);
@@ -1674,23 +1706,23 @@ export default function App() {
                   {/* Big 3 cards */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 text-center">
-                      <div className="text-3xl mb-1">🟫</div>
+                      <div className="text-2xl sm:text-3xl mb-1">🟫</div>
                       <p className="text-xs font-semibold text-orange-600 mb-1">أكياس أسمنت</p>
-                      <p className="text-3xl font-black text-orange-800">{fmt(mr.cementBags, 0)}</p>
+                      <p className="text-xl sm:text-3xl font-black text-orange-800">{fmt(mr.cementBags, 0)}</p>
                       <p className="text-xs text-orange-500 mt-1">كيس {mix.bagWeightKg} كجم</p>
                       <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.cementVolume)} م³</p>
                     </div>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
-                      <div className="text-3xl mb-1">🟨</div>
+                      <div className="text-2xl sm:text-3xl mb-1">🟨</div>
                       <p className="text-xs font-semibold text-yellow-700 mb-1">حجم الرمل</p>
-                      <p className="text-3xl font-black text-yellow-800">{fmt(mr.sandVolume)}</p>
+                      <p className="text-xl sm:text-3xl font-black text-yellow-800">{fmt(mr.sandVolume)}</p>
                       <p className="text-xs text-yellow-600 mt-1">م³</p>
                       <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.sandVolume * 1.6, 1)} طن تقريباً</p>
                     </div>
                     <div className="bg-slate-100 border border-slate-300 rounded-2xl p-4 text-center">
-                      <div className="text-3xl mb-1">⬛</div>
+                      <div className="text-2xl sm:text-3xl mb-1">⬛</div>
                       <p className="text-xs font-semibold text-slate-600 mb-1">حجم الزلط</p>
-                      <p className="text-3xl font-black text-slate-800">{fmt(mr.gravelVolume)}</p>
+                      <p className="text-xl sm:text-3xl font-black text-slate-800">{fmt(mr.gravelVolume)}</p>
                       <p className="text-xs text-slate-500 mt-1">م³</p>
                       <p className="text-xs text-slate-400 mt-0.5">{fmt(mr.gravelVolume * 1.55, 1)} طن تقريباً</p>
                     </div>

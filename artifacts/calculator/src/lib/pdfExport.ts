@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { jsPDF as jsPDFType } from "jspdf";
 import { prepareArabicText } from "./arabicText";
+import { REBAR_TABLE, rebarCount } from "./rebar";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -1095,6 +1096,63 @@ function drawMixDesignPage(
 // SECTION DEFINITIONS (for main report pages)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function drawRebarPage(pdf: jsPDF, summary: FullSummary, dateStr: string, project: ProjectInfo): void {
+  const total = summary.totalSteelKg;
+
+  pdf.setFillColor(...C.darkBlue);
+  pdf.rect(0, 0, PAGE_W, 34, "F");
+  pdf.setTextColor(...C.white);
+  _useFont(pdf, "bold");
+  pdf.setFontSize(13);
+  drawText(pdf, "Reinforcement Bars — Equivalent Count", PAGE_W / 2, 12, { align: "center" });
+  _useFont(pdf, "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(...C.mutedGray);
+  drawText(pdf, `Total steel: ${fmt(total, 1)} kg (${fmt(summary.totalSteelTons, 3)} tons)`, PAGE_W / 2, 23, { align: "center" });
+  pdf.setFillColor(...C.goldAccent);
+  pdf.rect(0, 34 - 0.8, PAGE_W, 0.8, "F");
+
+  _useFont(pdf, "normal");
+  pdf.setFontSize(7);
+  pdf.setTextColor(...C.bodyText);
+  drawText(pdf, dateStr, PAGE_W - MARGIN, 43, { align: "right" });
+  if (project.projectName) drawText(pdf, project.projectName, MARGIN, 43);
+  pdf.setDrawColor(...C.goldAccent);
+  pdf.setLineWidth(0.3);
+  pdf.line(MARGIN, 46, PAGE_W - MARGIN, 46);
+
+  let y = 54;
+  const cols: OrderedTableColumn[] = [
+    { key: "dia",   w: CONTENT_W * 0.22, align: "center" as const },
+    { key: "len",   w: CONTENT_W * 0.22, align: "center" as const },
+    { key: "kgm",   w: CONTENT_W * 0.22, align: "center" as const },
+    { key: "kgbar", w: CONTENT_W * 0.17, align: "center" as const },
+    { key: "count", w: CONTENT_W * 0.17, align: "center" as const },
+  ];
+  drawTableHeader(pdf, y, cols, ["Diameter (mm)", "Bar length (m)", "Weight (kg/m)", "kg / bar", "No. of bars"]);
+  y += ROW_H + 1.5;
+  REBAR_TABLE.forEach((r, i) => {
+    drawTableRow(pdf, y, ROW_H, cols, {
+      dia: String(r.dia),
+      len: String(r.lengthM),
+      kgm: String(r.kgPerM),
+      kgbar: String(r.kgPerBar),
+      count: fmt(rebarCount(total, r.kgPerBar), 0),
+    }, i % 2 === 0);
+    y += ROW_H;
+  });
+
+  y += 7;
+  _useFont(pdf, "normal");
+  pdf.setFontSize(7);
+  pdf.setTextColor(...C.bodyText);
+  drawText(pdf, [
+    "Note: each row assumes the entire steel quantity is of a single diameter, rounded up to whole bars.",
+    "Lap splices and waste are not included. The actual diameter distribution depends on the structural design;",
+    "use this table as an ordering reference only.",
+  ], MARGIN, y);
+}
+
 function getSectionInfo(summary: FullSummary): SectionInfo[] {
   return [
     { key: "footings" as const,    titleAr: "Isolated Footings",   titleEn: "Isolated Footings",   ...summary.footings },
@@ -1172,6 +1230,11 @@ export async function exportStructuralReport(params: ExportPDFParams): Promise<v
   // helper create a clean page only when the remaining space cannot contain it.
   checkPageBreak(pdf, y, PAGE_H, HEADER_BAND_H + 4);
   drawMixDesignPage(pdf, summary, mix, dateStr, project);
+
+  if (summary.totalSteelKg > 0) {
+    checkPageBreak(pdf, 0, PAGE_H, HEADER_BAND_H + 4);
+    drawRebarPage(pdf, summary, dateStr, project);
+  }
 
   // Every page is now complete. Add the footer and final page count in a
   // second pass so page numbers can never exceed the actual document length.
