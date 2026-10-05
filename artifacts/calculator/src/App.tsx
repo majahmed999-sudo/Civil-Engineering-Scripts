@@ -511,7 +511,7 @@ function SectionTable({ section, title, colorClass }: {
             {section.elements.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                 <td className="px-3 py-2 font-medium text-slate-700">{r.label}</td>
-                <td className="px-2 py-2 text-center text-slate-500">{r.dim1}×{r.dim2}×{r.dim3}</td>
+                <td dir="ltr" className="px-2 py-2 text-center text-slate-500">{r.dim1}×{r.dim2}×{r.dim3}</td>
                 <td className="px-2 py-2 text-center text-slate-600">{r.quantity}</td>
                 <td className="px-2 py-2 text-center font-semibold text-blue-700">{fmt(r.totalVolume)}</td>
                 <td className="px-2 py-2 text-center font-semibold text-slate-700">{fmt(r.steelKg, 1)}</td>
@@ -1556,7 +1556,7 @@ export default function App() {
                             </td>
                             <td className="px-3 py-2 text-slate-600">{item.floorName}</td>
                             <td className="px-3 py-2 font-semibold text-slate-700">{item.label}</td>
-                            <td className="px-3 py-2 text-center text-slate-600 font-mono">
+                            <td dir="ltr" className="px-3 py-2 text-center text-slate-600 font-mono">
                               {item.dim1.toFixed(2)} × {item.dim2.toFixed(2)} × {item.dim3.toFixed(2)}
                             </td>
                             <td className="px-3 py-2 text-center font-bold text-slate-700">{item.qty}</td>

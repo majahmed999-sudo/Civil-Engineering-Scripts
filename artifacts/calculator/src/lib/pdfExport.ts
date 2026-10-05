@@ -270,7 +270,7 @@ function drawFooter(pdf: jsPDF, pageNum: number, totalPages: number) {
   pdf.line(MARGIN, PAGE_H - FOOTER_BAND_H + 2, PAGE_W - MARGIN, PAGE_H - FOOTER_BAND_H + 2);
 
   pdf.setFontSize(6);
-  drawText(pdf, "Developed by Eng. Majid Alqobidhah", MARGIN, PAGE_H - FOOTER_BAND_H + 8.5);
+  drawText(pdf, "Developed by Eng. Majid Alqobidhah", MARGIN, PAGE_H - FOOTER_BAND_H + 5.8);
 
   _useFont(pdf, "bold");
   pdf.setTextColor(...C.goldAccent);
@@ -764,7 +764,7 @@ function drawBOQ(
     { key: "cost",       w: 22,  align: "right" as const },
   ];
 
-  const headers = ["#", "Type", "Floor", "Label", "L×W×H (m)", "Qty", "Vol/unit", "Total Vol", "Steel kg", "Cost"];
+  const headers = ["#", "Type", "Floor", "Label", "Dimensions (m)", "Qty", "Vol/unit", "Total Vol", "Steel kg", "Cost"];
   const totalColW = cols.reduce((s, c) => s + c.w, 0);
 
   // Calculate rows per page (accounting for headers/footer)
