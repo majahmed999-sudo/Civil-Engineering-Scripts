@@ -29,6 +29,7 @@ interface ProjectInfo {
   clientName: string;
   concretePricePerM3: string;
   steelPricePerTon: string;
+  currency: string;
   footingSteelRatio: string;
   columnSteelRatio: string;
   beamSteelRatio: string;
@@ -213,6 +214,7 @@ const initialProject: ProjectInfo = {
   clientName: "",
   concretePricePerM3: "",
   steelPricePerTon: "",
+  currency: "",
   footingSteelRatio: "80",
   columnSteelRatio: "120",
   beamSteelRatio: "150",
@@ -303,7 +305,7 @@ function computeFull(
   footings: ElementType[], stripFootings: ElementType[], raftFootings: ElementType[],
   columns: ElementType[], beams: ElementType[],
   solidSlabs: ElementType[], hollowSlabs: ElementType[], flatSlabs: ElementType[], waffleSlabs: ElementType[],
-  floors: Floor[], p: ProjectInfo
+  floors: Floor[], p: ProjectInfo, columnShape: ColumnShape = "rectangular"
 ): FullSummary {
   const cp = parseFloat(p.concretePricePerM3), sp = parseFloat(p.steelPricePerTon);
   const fr = parseFloat(p.footingSteelRatio || "80"), sr = parseFloat(p.stripFootingSteelRatio || "60");
@@ -317,7 +319,7 @@ function computeFull(
   const f  = computeSection(footings,      fr,  cp, sp);
   const sf = computeSection(stripFootings, sr,  cp, sp);
   const rf = computeSection(raftFootings,  rr,  cp, sp);
-  const c  = computeSection(columns,       cr,  cp, sp, 1, undefined, "circular");
+  const c  = computeSection(columns,       cr,  cp, sp, 1, undefined, columnShape);
   const b  = computeSection(beams,         br,  cp, sp);
   const ss = computeSection(solidSlabs,    ssr, cp, sp);
   const hs = computeSection(hollowSlabs,   hsr, cp, sp, hce);
@@ -329,7 +331,7 @@ function computeFull(
     const ff  = computeSection(footings,      fr,  cp, sp, 1,   floor.id);
     const fsf = computeSection(stripFootings, sr,  cp, sp, 1,   floor.id);
     const frf = computeSection(raftFootings,  rr,  cp, sp, 1,   floor.id);
-    const fc  = computeSection(columns,       cr,  cp, sp, 1,   floor.id, "circular");
+    const fc  = computeSection(columns,       cr,  cp, sp, 1,   floor.id, columnShape);
     const fb  = computeSection(beams,         br,  cp, sp, 1,   floor.id);
     const fss = computeSection(solidSlabs,    ssr, cp, sp, 1,   floor.id);
     const fhs = computeSection(hollowSlabs,   hsr, cp, sp, hce, floor.id);
@@ -777,7 +779,7 @@ export default function App() {
         flatSlabSteelRatio: "0",
         waffleSlabSteelRatio: "0",
       };
-      setSummary(computeFull(footings, stripFootings, raftFootings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, floors, calcProject));
+      setSummary(computeFull(footings, stripFootings, raftFootings, columns, beams, solidSlabs, hollowSlabs, flatSlabs, waffleSlabs, floors, calcProject, columnShape));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     }
   }
@@ -1088,6 +1090,11 @@ export default function App() {
                 {includeSteel ? "حديد التسليح: مفعّل" : "خرسانة فقط"}
               </button>
             </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-slate-600 mb-1">العملة <span className="text-slate-400">(اختياري، مثال: YER / SAR / USD)</span></label>
+              <input type="text" name="currency" value={project.currency ?? ""} onChange={handleProjectChange} maxLength={8} placeholder="USD"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition text-center" />
+            </div>
             <div className={`grid gap-3 mb-4 ${includeSteel ? "grid-cols-2" : "grid-cols-1"}`}>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">سعر م³ الخرسانة</label>
@@ -1293,7 +1300,7 @@ export default function App() {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">شكل العمود</p>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setColumnShape("rectangular")}
+                    <button type="button" onClick={() => { setColumnShape("rectangular"); setSummary(null); }}
                       className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center border-2 ${
                         columnShape === "rectangular"
                           ? "bg-orange-600 text-white border-transparent shadow-sm"
@@ -1301,7 +1308,7 @@ export default function App() {
                       }`}>
                       مستطيل
                     </button>
-                    <button type="button" onClick={() => setColumnShape("circular")}
+                    <button type="button" onClick={() => { setColumnShape("circular"); setSummary(null); }}
                       className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center border-2 ${
                         columnShape === "circular"
                           ? "bg-orange-600 text-white border-transparent shadow-sm"

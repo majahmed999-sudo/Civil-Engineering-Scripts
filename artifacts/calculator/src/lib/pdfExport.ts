@@ -50,7 +50,7 @@ interface MixDesign {
 interface MixResult { dryVolume: number; cementVolume: number; sandVolume: number; gravelVolume: number; cementBags: number; }
 interface ProjectInfo {
   projectName: string; engineerName: string; clientName: string;
-  concretePricePerM3: string; steelPricePerTon: string;
+  concretePricePerM3: string; steelPricePerTon: string; currency?: string;
 }
 interface SectionInfo {
   key: keyof FullSummary; titleAr: string; titleEn: string; totalVolume: number;
@@ -79,6 +79,13 @@ function computeMix(totalVolume: number, m: MixDesign): MixResult {
 /** Format number with thousands separators — 2 decimal places by default */
 function fmt(n: number, decimals = 2): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+let _currency = "";
+
+/** Amount followed by the user's currency code (nothing if left empty) */
+function money(n: number, decimals = 2): string {
+  return _currency ? `${fmt(n, decimals)} ${_currency}` : fmt(n, decimals);
 }
 
 /** Convert ArrayBuffer → base64 (chunked for large buffers) */
@@ -514,7 +521,7 @@ function drawSummaryCards(pdf: jsPDF, yStart: number, summary: FullSummary, tota
   const cards = [
     { label: "Concrete Volume", value: `${fmt(summary.totalConcreteVolume, 2)} m³`, icon: "▣" },
     { label: "Steel Weight",    value: `${fmt(summary.totalSteelKg, 1)} kg`,         icon: "≡" },
-    { label: "Total Cost",      value: `$${fmt(summary.grandTotal, 2)}`,              icon: "Σ" },
+    { label: "Total Cost",      value: `${money(summary.grandTotal, 2)}`,              icon: "Σ" },
     { label: "Elements",        value: `${totalElements}`,                            icon: "♯" },
   ];
 
@@ -563,7 +570,7 @@ function drawTotalSummaryRow(pdf: jsPDF, yStart: number, summary: FullSummary): 
   const labels = [
     { label: "Total Concrete", value: `${fmt(summary.totalConcreteVolume, 2)} m³` },
     { label: "Total Steel",    value: `${fmt(summary.totalSteelKg, 1)} kg (${fmt(summary.totalSteelTons, 3)} tons)` },
-    { label: "Grand Total",    value: `$${fmt(summary.grandTotal, 2)}` },
+    { label: "Grand Total",    value: `${money(summary.grandTotal, 2)}` },
   ];
 
   labels.forEach((item, i) => {
@@ -681,7 +688,7 @@ function drawSectionTable(
   _useFont(pdf, "normal");
   pdf.setFontSize(6.5);
   pdf.setTextColor(...C.mutedGray);
-  const secSummary = `Volume: ${fmt(section.totalVolume, 3)} m³  |  Steel: ${fmt(section.totalSteelKg, 1)} kg  |  Cost: $${fmt(section.total, 2)}  |  Elements: ${section.elements.length}`;
+  const secSummary = `Volume: ${fmt(section.totalVolume, 3)} m³  |  Steel: ${fmt(section.totalSteelKg, 1)} kg  |  Cost: ${money(section.total, 2)}  |  Elements: ${section.elements.length}`;
   drawText(pdf, secSummary, PAGE_W - MARGIN - 2, y + 5.5, { align: "right" });
   y += ROW_H + 3;
 
@@ -1059,7 +1066,7 @@ function drawMixDesignPage(
   const gCols3 = [
     { label: "Total Concrete",  value: `${fmt(summary.totalConcreteVolume, 3)} m³` },
     { label: "Total Steel",     value: `${fmt(summary.totalSteelKg, 1)} kg (${fmt(summary.totalSteelTons, 3)} tons)` },
-    { label: "Grand Total Cost",value: `$${fmt(summary.grandTotal, 2)}` },
+    { label: "Grand Total Cost",value: `${money(summary.grandTotal, 2)}` },
   ];
 
   gCols3.forEach((item, i) => {
@@ -1114,6 +1121,7 @@ export interface ExportPDFParams {
 
 export async function exportStructuralReport(params: ExportPDFParams): Promise<void> {
   const { project, summary, mix, totalElements, boqItems } = params;
+  _currency = (project.currency ?? "").trim();
 
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const dateStr = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" });
