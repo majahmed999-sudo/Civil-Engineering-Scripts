@@ -210,7 +210,7 @@ const newElement = (floorId: string = DEFAULT_FLOOR_ID): ElementType => ({
 
 const initialProject: ProjectInfo = {
   projectName: "",
-  engineerName: "م. ماجد القبيضة",
+  engineerName: "",
   clientName: "",
   concretePricePerM3: "",
   steelPricePerTon: "",
@@ -410,7 +410,7 @@ function computeBOQ(
 }
 
 function fmt(n: number, decimals = 2) {
-  return n.toLocaleString("ar-EG", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 const MAIN_TABS: { id: TabId; label: string; icon: string; dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string }[] = [
@@ -910,7 +910,7 @@ export default function App() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 truncate">{sp.name}</p>
                         <p className="text-xs text-slate-400">
-                          {new Date(sp.savedAt).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" })}
+                          {new Date(sp.savedAt).toLocaleDateString("ar-EG-u-nu-latn", { year: "numeric", month: "short", day: "numeric" })}
                           {" — "}
                           {sp.floors.length} {sp.floors.length === 1 ? "طابق" : "طوابق"}
                         </p>
