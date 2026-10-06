@@ -1241,6 +1241,7 @@ export async function exportStructuralReport(params: ExportPDFParams): Promise<v
   const totalPages = pdf.getNumberOfPages();
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     pdf.setPage(pageNum);
+    if (pageNum === 1) continue; // cover page: no footer band
     drawFooter(pdf, pageNum, totalPages);
   }
 
