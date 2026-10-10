@@ -128,7 +128,7 @@ interface ElementResult {
   quantity: number;
   volumeEach: number;
   totalVolume: number;
-  steelKg: number;
+  steelKg: number; isCircular?: boolean;
 }
 
 interface SectionSummary {
@@ -185,6 +185,7 @@ interface BOQItem {
   label: string;
   dim1: number; dim2: number; dim3: number;
   qty: number;
+  isCircular?: boolean;
   volEach: number;
   volTotal: number;
   steelKgTotal: number;
@@ -287,12 +288,12 @@ function computeSection(
   const filtered = floorId !== undefined ? elements.filter((e) => e.floorId === floorId) : elements;
   const results: ElementResult[] = filtered.filter(isElementValid).map((e) => {
     const d1 = parseFloat(e.dim1), d2 = parseFloat(e.dim2), d3 = parseFloat(e.dim3), q = parseInt(e.quantity);
-    const isCircular = columnShape === "circular" || e.shape === "circular";
+    const isCircular = e.shape === "circular";
     const volumeEach = isCircular
       ? Math.PI * (d1 / 2) * (d1 / 2) * d3 * concreteEfficiency
       : d1 * d2 * d3 * concreteEfficiency;
     const totalVolume = volumeEach * q;
-    return { id: e.id, label: normalizeElementLabel(e.label), dim1: d1, dim2: isCircular ? d1 : d2, dim3: d3, quantity: q, volumeEach, totalVolume, steelKg: totalVolume * ratio };
+    return { id: e.id, label: normalizeElementLabel(e.label), dim1: d1, dim2: isCircular ? d1 : d2, dim3: d3, quantity: q, volumeEach, totalVolume, isCircular, steelKg: (concreteEfficiency > 0 ? totalVolume / concreteEfficiency : 0) * ratio };
   });
   const totalVolume = results.reduce((s, r) => s + r.totalVolume, 0);
   const totalSteelKg = results.reduce((s, r) => s + r.steelKg, 0);
@@ -398,7 +399,7 @@ function computeBOQ(
       items.push({
         no: no++, typeLabel, typeCode, floorName,
         label: normalizeElementLabel(er.label),
-        dim1: er.dim1, dim2: er.dim2, dim3: er.dim3,
+        dim1: er.dim1, dim2: er.dim2, dim3: er.dim3, isCircular: er.isCircular,
         qty: er.quantity,
         volEach: er.volumeEach,
         volTotal: er.totalVolume,
@@ -422,11 +423,11 @@ const MAIN_TABS: { id: TabId; label: string; icon: string; dim1Label: string; di
 ];
 
 function ElementCard({
-  element, idx, dim1Label, dim2Label, dim3Label, defaultLabel,
+  element, idx, dim1Label, dim2Label, dim3Label, defaultLabel, shapeToggle,
   tabCount, floors, accentColor, onChange, onRemove,
 }: {
   element: ElementType; idx: number;
-  dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string;
+  dim1Label: string; dim2Label: string; dim3Label: string; defaultLabel: string; shapeToggle?: React.ReactNode;
   tabCount: number; floors: Floor[]; accentColor?: string;
   onChange: (id: string, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onRemove: (id: string) => void;
@@ -466,13 +467,14 @@ function ElementCard({
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        {shapeToggle}
+        <div className={`grid ${dim2Label === "" ? "grid-cols-3" : "grid-cols-4"} gap-2`}>
           {[
             { name: "dim1", label: dim1Label },
             { name: "dim2", label: dim2Label },
             { name: "dim3", label: dim3Label },
             { name: "quantity", label: "العدد", min: "1", step: "1" },
-          ].map((field) => (
+          ].filter((f) => !(f.name === "dim2" && dim2Label === "")).map((field) => (
             <div key={field.name}>
               <label className="block text-xs font-medium text-slate-600 mb-1">{field.label}</label>
               <input type="number" name={field.name}
@@ -498,7 +500,7 @@ function SectionTable({ section, title, colorClass }: {
     <div>
       <h4 className="text-xs font-bold text-slate-600 uppercase mb-2">{title}</h4>
       {(() => {
-        const raw = section.elements.reduce((s, e) => s + e.dim1 * e.dim2 * e.dim3 * e.quantity, 0);
+        const raw = section.elements.reduce((s, e) => s + (e.isCircular ? Math.PI / 4 * e.dim1 * e.dim1 : e.dim1 * e.dim2) * e.dim3 * e.quantity, 0);
         const eff = raw > 0 ? section.totalVolume / raw : 1;
         return Math.abs(eff - 1) > 0.001
           ? <p className="text-xs text-slate-400 mb-2">ℹ️ الحجم الصافي = الطول × العرض × السمك × {eff.toFixed(2)} (نسبة الفراغات)</p>
@@ -519,7 +521,7 @@ function SectionTable({ section, title, colorClass }: {
             {section.elements.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                 <td className="px-3 py-2 font-medium text-slate-700">{r.label}</td>
-                <td dir="ltr" className="px-2 py-2 text-center text-slate-500">{r.dim1}×{r.dim2}×{r.dim3}</td>
+                <td dir="ltr" className="px-2 py-2 text-center text-slate-500">{r.isCircular ? `Ø${r.dim1}×${r.dim3}` : `${r.dim1}×${r.dim2}×${r.dim3}`}</td>
                 <td className="px-2 py-2 text-center text-slate-600">{r.quantity}</td>
                 <td className="px-2 py-2 text-center font-semibold text-blue-700">{fmt(r.totalVolume)}</td>
                 <td className="px-2 py-2 text-center font-semibold text-slate-700">{fmt(r.steelKg, 1)}</td>
@@ -723,7 +725,7 @@ export default function App() {
     setFootings(sp.footings);
     setStripFootings(sp.stripFootings ?? [newElement()]);
     setRaftFootings(sp.raftFootings ?? [newElement()]);
-    setColumns(sp.columns);
+    setColumns(sp.columnShape === "circular" ? sp.columns.map((c) => ({ ...c, shape: c.shape ?? "circular" })) : sp.columns);
     setBeams(sp.beams);
     setSolidSlabs(sp.solidSlabs);
     setHollowSlabs(sp.hollowSlabs);
@@ -1305,38 +1307,15 @@ export default function App() {
             const [colElements, colSetter] = mainStateMap["columns"];
             return (
               <div className="space-y-3">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">شكل العمود</p>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => { setColumnShape("rectangular"); setSummary(null); }}
-                      className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center border-2 ${
-                        columnShape === "rectangular"
-                          ? "bg-orange-600 text-white border-transparent shadow-sm"
-                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
-                      }`}>
-                      مستطيل
-                    </button>
-                    <button type="button" onClick={() => { setColumnShape("circular"); setSummary(null); }}
-                      className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center border-2 ${
-                        columnShape === "circular"
-                          ? "bg-orange-600 text-white border-transparent shadow-sm"
-                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
-                      }`}>
-                      دائري
-                    </button>
-                  </div>
-                  {columnShape === "circular" && (
-                    <p className="mt-3 text-xs text-slate-400 bg-orange-50 rounded-lg px-3 py-2">ℹ️ الحجم = π × (قطر/2)² × الارتفاع</p>
-                  )}
-                </div>
                 {colElements.map((el, idx) => (
                   <ElementCard key={el.id} element={el} idx={idx}
-                    dim1Label={columnShape === "circular" ? "القطر (م)" : tabCfg.dim1Label}
-                    dim2Label={columnShape === "circular" ? "القطر (م)" : tabCfg.dim2Label}
+                    dim1Label={el.shape === "circular" ? "القطر (م)" : tabCfg.dim1Label}
+                    shapeToggle={<div className="flex gap-2 mb-1">{(["rectangular", "circular"] as const).map((s) => (<button key={s} type="button" onClick={() => { colSetter((es) => es.map((x) => x.id === el.id ? { ...x, shape: s, dim2: s === "circular" ? x.dim1 : x.dim2 } : x)); setSummary(null); }} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition ${(el.shape ?? "rectangular") === s ? "bg-orange-600 text-white border-transparent" : "bg-slate-50 text-slate-600 border-slate-200"}`}>{s === "circular" ? "دائري" : "مستطيل"}</button>))}</div>}
+                    dim2Label={el.shape === "circular" ? "" : tabCfg.dim2Label}
                     dim3Label={tabCfg.dim3Label}
                     defaultLabel={tabCfg.defaultLabel} tabCount={colElements.length} floors={floors}
                     accentColor={tabCfg.id === "columns" ? "orange" : "blue"}
-                    onChange={(id, e) => handleElementChange(colSetter, id, e)}
+                    onChange={(id, e) => { handleElementChange(colSetter, id, e); if (el.shape === "circular" && e.target.name === "dim1") { const v = e.target.value; colSetter((es) => es.map((el) => el.id === id ? { ...el, dim2: v } : el)); } }}
                     onRemove={(id) => removeElement(colElements, colSetter, id)} />
                 ))}
                 <button type="button" onClick={() => addElement(colSetter, defaultFloorId)}
@@ -1565,7 +1544,7 @@ export default function App() {
                             <td className="px-3 py-2 text-slate-600">{item.floorName}</td>
                             <td className="px-3 py-2 font-semibold text-slate-700">{item.label}</td>
                             <td dir="ltr" className="px-3 py-2 text-center text-slate-600 font-mono">
-                              {item.dim1.toFixed(2)} × {item.dim2.toFixed(2)} × {item.dim3.toFixed(2)}
+                              {item.isCircular ? `Ø ${item.dim1.toFixed(2)} × ${item.dim3.toFixed(2)}` : `${item.dim1.toFixed(2)} × ${item.dim2.toFixed(2)} × ${item.dim3.toFixed(2)}`}
                             </td>
                             <td className="px-3 py-2 text-center font-bold text-slate-700">{item.qty}</td>
                             <td className="px-3 py-2 text-center text-slate-600">{fmt(item.volEach, 3)}</td>

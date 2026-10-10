@@ -7,7 +7,7 @@ import { REBAR_TABLE, rebarCount } from "./rebar";
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 interface ElementResult {
-  id: string; label: string; dim1: number; dim2: number; dim3: number;
+  id: string; label: string; dim1: number; dim2: number; dim3: number; isCircular?: boolean;
   quantity: number; volumeEach: number; totalVolume: number; steelKg: number;
 }
 interface SectionSummary {
@@ -28,7 +28,7 @@ interface FullSummary {
 }
 interface BOQItem {
   no: number; typeLabel: string; typeCode: string; floorName: string;
-  label: string; dim1: number; dim2: number; dim3: number;
+  label: string; dim1: number; dim2: number; dim3: number; isCircular?: boolean;
   qty: number; volEach: number; volTotal: number; steelKgTotal: number; costTotal: number;
 }
 
@@ -712,7 +712,7 @@ function drawSectionTable(
     const cost = er.totalVolume * parseFloat(project.concretePricePerM3 || "0") + (er.steelKg / 1000) * parseFloat(project.steelPricePerTon || "0");
     drawTableRow(pdf, y, ROW_H, elementCols, {
       label: normalizeElementLabel(er.label),
-      dimensions: `${er.dim1.toFixed(2)}×${er.dim2.toFixed(2)}×${er.dim3.toFixed(2)}`,
+      dimensions: er.isCircular ? `Ø${er.dim1.toFixed(2)}×${er.dim3.toFixed(2)}` : `${er.dim1.toFixed(2)}×${er.dim2.toFixed(2)}×${er.dim3.toFixed(2)}`,
       quantity: String(er.quantity),
       volume: fmt(er.totalVolume, 3),
       steel: fmt(er.steelKg, 1),
@@ -734,7 +734,7 @@ function drawSectionTable(
   }, false, true);
   y += ROW_H + 3;
 
-  const rawVol = section.elements.reduce((s, e) => s + e.dim1 * e.dim2 * e.dim3 * e.quantity, 0);
+  const rawVol = section.elements.reduce((s, e) => s + (e.isCircular ? Math.PI / 4 * e.dim1 * e.dim1 : e.dim1 * e.dim2) * e.dim3 * e.quantity, 0);
   const eff = rawVol > 0 ? section.totalVolume / rawVol : 1;
   if (Math.abs(eff - 1) > 0.001) {
     y = checkPageBreak(pdf, y, 6, HEADER_BAND_H + 4, drawHeader);
@@ -857,7 +857,7 @@ function drawBOQ(
       type: item.typeCode,
       floor: item.floorName.slice(0, 14),
       label: item.label.slice(0, 12),
-      dimensions: `${item.dim1.toFixed(2)}×${item.dim2.toFixed(2)}×${item.dim3.toFixed(2)}`,
+      dimensions: item.isCircular ? `Ø${item.dim1.toFixed(2)}×${item.dim3.toFixed(2)}` : `${item.dim1.toFixed(2)}×${item.dim2.toFixed(2)}×${item.dim3.toFixed(2)}`,
       quantity: String(item.qty),
       volUnit: fmt(item.volEach, 3),
       totalVol: fmt(item.volTotal, 3),
