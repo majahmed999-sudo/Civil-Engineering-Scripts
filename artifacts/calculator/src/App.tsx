@@ -308,7 +308,7 @@ function computeFull(
   solidSlabs: ElementType[], hollowSlabs: ElementType[], flatSlabs: ElementType[], waffleSlabs: ElementType[],
   floors: Floor[], p: ProjectInfo, columnShape: ColumnShape = "rectangular"
 ): FullSummary {
-  const cp = parseFloat(p.concretePricePerM3), sp = parseFloat(p.steelPricePerTon);
+  const cp = parseFloat(p.concretePricePerM3) || 0, sp = parseFloat(p.steelPricePerTon) || 0;
   const fr = parseFloat(p.footingSteelRatio || "80"), sr = parseFloat(p.stripFootingSteelRatio || "60");
   const rr = parseFloat(p.raftFootingSteelRatio || "50");
   const cr = parseFloat(p.columnSteelRatio || "120");
@@ -773,7 +773,7 @@ export default function App() {
 
   function handleCalculate(e: React.FormEvent) {
     e.preventDefault();
-    if (allElements.some(isElementValid) && isPricesValid(project, includeSteel)) {
+    if (allElements.some(isElementValid)) {
       const calcProject = includeSteel ? project : {
         ...project,
         steelPricePerTon: "0",
@@ -842,7 +842,7 @@ export default function App() {
     }
   }
 
-  const canCalculate = allElements.some(isElementValid) && isPricesValid(project, includeSteel);
+  const canCalculate = allElements.some(isElementValid);
   const activeSlabConfig = SLAB_SUBTYPES.find((s) => s.id === slabSubTab)!;
   const [activeSlabElements, activeSlabSetter] = slabStateMap[slabSubTab];
   const defaultFloorId = floors[0]?.id ?? DEFAULT_FLOOR_ID;
