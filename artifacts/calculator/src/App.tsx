@@ -842,7 +842,7 @@ export default function App() {
     }
   }
 
-  const canCalculate = allElements.some(isElementValid) && isPricesValid(project);
+  const canCalculate = allElements.some(isElementValid) && isPricesValid(project, includeSteel);
   const activeSlabConfig = SLAB_SUBTYPES.find((s) => s.id === slabSubTab)!;
   const [activeSlabElements, activeSlabSetter] = slabStateMap[slabSubTab];
   const defaultFloorId = floors[0]?.id ?? DEFAULT_FLOOR_ID;
