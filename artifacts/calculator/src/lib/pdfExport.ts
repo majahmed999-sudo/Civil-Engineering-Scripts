@@ -48,7 +48,7 @@ interface MixDesign {
   cement: string; sand: string; gravel: string;
   compactionFactor: string; bagWeightKg: string;
 }
-interface MixResult { dryVolume: number; cementVolume: number; sandVolume: number; gravelVolume: number; cementBags: number; }
+interface MixResult { dryVolume: number; cementVolume: number; sandVolume: number; gravelVolume: number; cementBags: number; cementBagsExact: number; }
 interface ProjectInfo {
   projectName: string; engineerName: string; clientName: string;
   concretePricePerM3: string; steelPricePerTon: string; currency?: string;
@@ -73,8 +73,9 @@ function computeMix(totalVolume: number, m: MixDesign): MixResult {
   const cementVolume = (c / total) * dryVolume;
   const sandVolume   = (s / total) * dryVolume;
   const gravelVolume = (g / total) * dryVolume;
-  const cementBags   = Math.ceil(cementVolume / (bw / 1440));
-  return { dryVolume, cementVolume, sandVolume, gravelVolume, cementBags };
+  const cementBagsExact = cementVolume / (bw / 1440);
+  const cementBags   = Math.ceil(cementBagsExact);
+  return { dryVolume, cementVolume, sandVolume, gravelVolume, cementBags, cementBagsExact };
 }
 
 /** Format number with thousands separators — 2 decimal places by default */
@@ -921,16 +922,16 @@ function drawBOQ(
   drawText(pdf, "TOTAL", cx + 1, totY + 1);
   cx += cols[0].w;
   // Skip type, floor, label, dims, qty, volEach
-  for (let ci = 1; ci < 6; ci++) cx += cols[ci].w;
+  for (let ci = 1; ci < 7; ci++) cx += cols[ci].w;
   // Total Vol
-  drawText(pdf, fmt(tVol, 3), cx + cols[6].w / 2, totY + 1, { align: "center" });
-  cx += cols[6].w;
-  // Steel kg
-  drawText(pdf, fmt(tSteel, 1), cx + cols[7].w / 2, totY + 1, { align: "center" });
+  drawText(pdf, fmt(tVol, 3), cx + cols[7].w / 2, totY + 1, { align: "center" });
   cx += cols[7].w;
-  // Cost
-  drawText(pdf, fmt(tCost, 2), cx + cols[8].w - 1, totY + 1, { align: "right" });
+  // Steel kg
+  drawText(pdf, fmt(tSteel, 1), cx + cols[8].w / 2, totY + 1, { align: "center" });
   cx += cols[8].w;
+  // Cost
+  drawText(pdf, fmt(tCost, 2), cx + cols[9].w - 1, totY + 1, { align: "right" });
+  cx += cols[9].w;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1052,7 +1053,7 @@ function drawMixDesignPage(
   y += ROW_H + 1.5;
 
   const refRows = [
-    { mat: "Cement", qty: `${perM.cementBags} bags`, det: `${fmt(perM.cementVolume, 4)} m³  •  ${mix.bagWeightKg} kg/bag` },
+    { mat: "Cement", qty: `${fmt(perM.cementBagsExact, 2)} bags`, det: `${fmt(perM.cementVolume, 4)} m³  •  ${mix.bagWeightKg} kg/bag` },
     { mat: "Sand",   qty: `${fmt(perM.sandVolume, 4)} m³`, det: `≈ ${fmt(perM.sandVolume * 1600, 0)} kg` },
     { mat: "Gravel", qty: `${fmt(perM.gravelVolume, 4)} m³`, det: `≈ ${fmt(perM.gravelVolume * 1550, 0)} kg` },
   ];
