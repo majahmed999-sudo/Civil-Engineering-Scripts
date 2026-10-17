@@ -60,6 +60,7 @@ interface MixResult {
   sandVolume: number;
   gravelVolume: number;
   cementBags: number;
+  cementBagsExact: number;
 }
 
 const initialMix: MixDesign = {
@@ -88,7 +89,8 @@ function computeMix(totalVolume: number, m: MixDesign): MixResult {
   const sandVolume   = (s / total) * dryVolume;
   const gravelVolume = (g / total) * dryVolume;
   const cementBags   = Math.ceil(cementVolume / (bw / 1440));
-  return { dryVolume, cementVolume, sandVolume, gravelVolume, cementBags };
+  const cementBagsExact = cementVolume / (bw / 1440);
+  return { dryVolume, cementVolume, sandVolume, gravelVolume, cementBags, cementBagsExact };
 }
 
 interface SavedProject {
@@ -1714,7 +1716,7 @@ export default function App() {
                       {(() => {
                         const per = computeMix(1, mix);
                         return [
-                          { icon: "🟫", label: "كيس أسمنت", val: `${fmt(per.cementBags, 0)} كيس` },
+                          { icon: "🟫", label: "كيس أسمنت", val: `${fmt(per.cementBagsExact, 2)} كيس` },
                           { icon: "🟨", label: "رمل",        val: `${fmt(per.sandVolume)} م³` },
                           { icon: "⬛", label: "زلط",        val: `${fmt(per.gravelVolume)} م³` },
                         ].map((item) => (
