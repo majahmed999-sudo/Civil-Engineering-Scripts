@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>فاحص جداول الكميات – CE-001</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#5b6573;--bd:#dde1e7;--ok:#1a7f4b;--wn:#b36b00;--er:#c62828;--ac:#1f5fbf;--okb:#e6f4ec;--wnb:#fff3e0;--erb:#fdeaea;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1d2229;--tx:#e8ebef;--mu:#9aa5b4;--bd:#323a45;--ok:#5fd39a;--wn:#f0b45a;--er:#ff8a80;--ac:#7fb0ff;--okb:#17301f;--wnb:#33280f;--erb:#35191a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1d2229;--tx:#e8ebef;--mu:#9aa5b4;--bd:#323a45;--ok:#5fd39a;--wn:#f0b45a;--er:#ff8a80;--ac:#7fb0ff;--okb:#17301f;--wnb:#33280f;--erb:#35191a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.6 system-ui,"Segoe UI",Tahoma,sans-serif}
+main{max-width:760px;margin:0 auto;padding:14px}
+h1{font-size:19px;margin:6px 0}
+.mu{color:var(--mu);font-size:13px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+.btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:9px 14px;font:inherit;cursor:pointer;margin:4px 0 4px 6px}
+.btn.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.fi{display:block;width:100%;margin:6px 0;color:var(--tx)}
+.stats{display:flex;gap:8px;margin:8px 0;text-align:center}
+.stats div{flex:1;border:1px solid var(--bd);border-radius:10px;padding:6px;font-size:13px}
+.stats b{display:block;font-size:20px}
+.ok{color:var(--ok)}.wn{color:var(--wn)}.er{color:var(--er)}
+.note{font-size:13.5px;margin:3px 0}
+.it{background:var(--card);border:1px solid var(--bd);border-right:5px solid var(--ok);border-radius:10px;padding:9px 11px;margin:8px 0;overflow-wrap:anywhere}
+.it.w{border-right-color:var(--wn)}.it.e{border-right-color:var(--er)}
+.m{font-size:13.5px;margin-top:3px}
+.m.e{color:var(--er)}.m.w{color:var(--wn)}.m.i{color:var(--mu)}
+textarea{width:100%;height:120px;box-sizing:border-box;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;direction:ltr}
+</style>
+</head>
+<body>
+<main>
+<h1>فاحص جداول الكميات (BOQ) – CE-001</h1>
+<div class="mu">ارفع ملف Excel أو CSV. المعالجة تتم على جهازك ولا تُرسل البيانات لأي خادم. يُقرأ أول جدول يحتوي عمودي «الكمية» و«الوحدة».</div>
+<div class="card">
+<div class="mu">١) رفع ملف Excel أو CSV:</div><input id="f" type="file" class="fi">
+<button class="btn s" id="smp">فحص عيّنة تجريبية</button>
+<div class="mu">٢) أو الصق الجدول (انسخه من Excel أو Sheets بما فيه صف العناوين):</div><textarea id="pt" style="direction:rtl" placeholder="الصق هنا"></textarea><button class="btn" id="pb">فحص النص الملصوق</button>
+<div class="mu" id="msg"></div>
+</div>
+<div id="act" hidden>
+<label class="mu"><input type="checkbox" id="sp"> إظهار البنود الناجحة</label><br>
+<button class="btn s" id="c1">نسخ التقرير (نص)</button><button class="btn s" id="c2">نسخ JSON</button>
+<div class="mu" id="cpmsg"></div><textarea id="cpbox" hidden readonly></textarea>
+</div>
+<div id="res"></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const AR='٠١٢٣٤٥٦٧٨٩',FA='۰۱۲۳۴۵۶۷۸۹';
+const nd=s=>String(s==null?'':s).replace(/[٠-٩]/g,d=>AR.indexOf(d)).replace(/[۰-۹]/g,d=>FA.indexOf(d)).replace(/٫/g,'.').replace(/[٬،]/g,',');
+function num(v){
+  if(v===null||v===undefined||v==='')return{v:null};
+  if(typeof v==='number')return{v:v};
+  const raw=String(v).trim(),t=nd(raw).replace(/[,\s]/g,'');
+  if(t===''||/^[-–—]+$/.test(t))return{v:null};
+  if(/^-?\d+(\.\d+)?$/.test(t))return{v:parseFloat(t),ar:/[٠-٩۰-۹٫]/.test(raw)};
+  return{v:NaN};
+}
+const UD={m3:['m3','cum','cubicmeter','cubicmetre','م3','مترمكعب'],m2:['m2','sqm','squaremeter','squaremetre','م2','مترمربع'],kg:['kg','kgs','كجم','كغ','كيلو','كيلوجرام','كيلوغرام'],ton:['ton','tons','tonne','tonnes','mt','طن'],no:['no','nos','number','each','ea','عدد','قطعة'],m:['m','lm','rm','metre','meter','مترطولي','م','متر','مط'],ls:['ls','lumpsum','مقطوعية','بالمقطوعية','مقطوع','بالمقطوع']};
+const UM={};for(const k in UD)UD[k].forEach(x=>{UM[x]=k});
+const ukey=u=>UM[nd(u).toLowerCase().replace(/[.\s]/g,'').replace(/²/g,'2').replace(/³/g,'3')]||'';
+const RE={conc:/خرسان|concrete|\brcc\b|\bpcc\b/i,plain:/عادية|plain|\bpcc\b|blinding|lean|نظافة/i,rc:/مسلح|reinforced|\brcc\b|\brc\b/i,steel:/حديد|rebar|reinforcement\s*(steel|bars?)|steel\s*(bars?|reinforcement)|\btmt\b|fe\s?500/i};
+const QRE=/الكمية|quantity|\bqty\b/i,URE=/الوحدة|\bunits?\b|uom/i;
+function findHeader(rows){
+  for(let i=0;i<Math.min(rows.length,60);i++){
+    const r=(rows[i]||[]).map(x=>String(x==null?'':x).trim());
+    if(r.some(c=>QRE.test(c))&&r.some(c=>URE.test(c)))return i;
+  }
+  return -1;
+}
+const ACT=[[/مكرر/,'راجع المستند الأصلي: إن كان البند نفسه فاحذف التكرار، وإلا فأعد الترقيم'],[/الوصف مفقود/,'أكمل وصف البند من المواصفات'],[/الوحدة مفقودة/,'حدّد وحدة القياس (م3، م2، كغ، طن، عدد، مقطوعية)'],[/وحدة غير معروفة/,'استبدلها بوحدة معيارية أو وضّح المقصود'],[/غير موحدة/,'وحّد كتابة الوحدة في الجدول كله'],[/بدون رقم بند/,'أعطِ البند رقماً فريداً'],[/الكمية مفقودة/,'أدخل الكمية من جدول الحصر'],[/غير رقمية/,'اكتب الكمية رقماً فقط بلا نص'],[/صفر أو سالبة/,'راجع الحصر: يجب أن تكون الكمية موجبة'],[/خرسانة بوحدة وزن/,'تُقاس الخرسانة بالم3 (أو م2 لبعض الأرضيات حسب نص البند)'],[/حديد بوحدة حجم/,'يُقاس الحديد بالكغ أو الطن'],[/أساس القياس/,'تأكد أن الوحدة تطابق وصف البند (حجم أم مساحة) وصحّح أحدهما'],[/بالطن؟|بالكغ؟/,'تحقق من الوحدة في المخططات أو جدول الحديد قبل التحويل'],[/لا يساوي الكمية/,'راجع السعر أو الكمية أو معادلة الإجمالي'],[/السعر غير رقمي|سعر سالب/,'صحّح السعر الإفرادي']];
+const act=t=>{for(const [r,a] of ACT)if(r.test(t))return a;return''};
+let RP=null;
+function run(rows,label){
+  const hi=findHeader(rows);
+  if(hi<0){$('msg').textContent='لم أجد صف عناوين يحتوي «الكمية» و«الوحدة».';return}
+  const h=rows[hi].map(x=>String(x==null?'':x).trim());
+  const pick=(re,ex)=>h.findIndex(c=>c&&re.test(c)&&!(ex&&ex.test(c)));
+  const c={desc:pick(/بيان|وصف|description|تفاصيل|details|الأعمال/i),unit:pick(URE,/rate|سعر|price/i),qty:pick(QRE),
+    rate:pick(/سعر|rate|price/i,/كتابة|words|إجمالي|اجمالي|total|amount/i),amt:pick(/إجمالي|اجمالي|total|amount|المبلغ/i,/كتابة|words/i)};
+  c.id=pick(/رقم البند|item\s*no|sl\.?\s*no/i);if(c.id<0)c.id=pick(/^(no\.?|#|م)$/i);
+  if(c.desc<0||c.unit<0||c.qty<0){$('msg').textContent='تعذّر تحديد أعمدة الوصف/الوحدة/الكمية.';return}
+  const items=[];
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i]||[];
+    if(!r.some(x=>x!=null&&String(x).trim()!==''))continue;
+    const g=k=>c[k]>=0?r[c[k]]:null;
+    const d=String(g('desc')==null?'':g('desc')).trim(),u=String(g('unit')==null?'':g('unit')).trim(),q=num(g('qty'));
+    const first=r.slice(0,4).map(x=>String(x==null?'':x)).join(' ')+' '+d;
+    if(!u&&(q.v===null||/الإجمالي|الاجمالي|\btotal\b|sub[\s-]?total|grand/i.test(first)))continue;
+    items.push({row:i+1,id:String(g('id')==null?'':g('id')).trim(),d:d,u:u,qr:String(g('qty')==null?'':g('qty')).trim(),q:q,rate:g('rate'),amt:g('amt')});
+  }
+  const sp={},ids={};
+  items.forEach(t=>{t.k=ukey(t.u);if(t.k){sp[t.k]=sp[t.k]||{};sp[t.k][t.u]=(sp[t.k][t.u]||0)+1}
+    const k=nd(t.id).trim().toUpperCase();if(k)ids[k]=(ids[k]||0)+1});
+  const top=k=>Object.entries(sp[k]).sort((a,b)=>b[1]-a[1])[0][0];
+  let V=0,S=0,unp=0;
+  items.forEach(t=>{
+    const F=t.f=[],add=(s,x)=>F.push({s:s,t:x,a:act(x)}),dn=nd(t.d).toLowerCase();
+    if(!t.id)add('w','بدون رقم بند');else if(ids[nd(t.id).trim().toUpperCase()]>1)add('e','رقم البند مكرر');
+    if(!t.d)add('e','الوصف مفقود');
+    if(!t.u)add('e','الوحدة مفقودة');
+    else if(!t.k)add('w','وحدة غير معروفة: '+t.u);
+    else if(t.u!==top(t.k))add('w','كتابة الوحدة غير موحدة ('+t.u+') — الأكثر استخداماً: '+top(t.k));
+    if(t.q.v===null)add('e','الكمية مفقودة');
+    else if(Number.isNaN(t.q.v))add('e','الكمية غير رقمية: '+t.qr);
+    else{if(t.q.v<=0)add('e','الكمية صفر أو سالبة');if(t.q.ar)add('i','الكمية بأرقام عربية — تم تحويلها')}
+    const conc=RE.conc.test(dn),st=!conc&&RE.steel.test(dn),rc=conc&&RE.rc.test(dn)&&!RE.plain.test(dn);
+    if(conc&&(t.k==='kg'||t.k==='ton'))add('e','خرسانة بوحدة وزن');
+    if(st&&(t.k==='m3'||t.k==='m2'))add('e','حديد بوحدة حجم/مساحة');
+    if(t.k==='m2'&&(/(\d+(\.\d+)?\s*[*x×]\s*){2}\d+(\.\d+)?\s*(م|m)(?![\w\u0600-\u06FF])/i.test(dn)||/سعة\s*\d+\s*م3|capacity\s*\d+\s*m3/.test(dn)))add('w','الوصف بأبعاد/سعة حجمية والوحدة م2 — تحقق من أساس القياس');
+    const qv=t.q.v>0?t.q.v:0;
+    if(rc&&t.k==='m3')V+=qv;
+    if(st&&(t.k==='kg'||t.k==='ton')){
+      S+=t.k==='ton'?qv*1000:qv;
+      if(t.k==='kg'&&qv>0&&qv<100)add('w','كمية حديد صغيرة جداً بالكغ — هل هي بالطن؟');
+      if(t.k==='ton'&&qv>5000)add('w','كمية حديد ضخمة بالطن — هل هي بالكغ؟');
+    }
+    const rt=num(t.rate),am=num(t.amt);
+    if(c.rate>=0){if(rt.v===null)unp++;else if(Number.isNaN(rt.v))add('w','السعر غير رقمي');else if(rt.v<0)add('e','سعر سالب')}
+    if(rt.v>0&&am.v!==null&&!Number.isNaN(am.v)&&t.q.v>0){
+      const e=t.q.v*rt.v;
+      if(Math.abs(e-am.v)>Math.max(0.5,0.005*Math.abs(e)))add('e','الإجمالي '+am.v+' لا يساوي الكمية × السعر = '+(+e.toFixed(2)));
+    }
+    t.st=F.some(x=>x.s==='e')?'e':F.some(x=>x.s==='w')?'w':'p';
+  });
+  const G=[];
+  G.push({s:'i',t:'الأعمدة المعتمدة: وصف «'+h[c.desc]+'» | وحدة «'+h[c.unit]+'» | كمية «'+h[c.qty]+'»'+(c.id>=0?' | رقم «'+h[c.id]+'»':'')});
+  if(V>0&&S>0){const r=S/V;G.push({s:(r<60||r>200)?'w':'i',t:'نسبة الحديد إلى الخرسانة المسلحة الإجمالية ≈ '+r.toFixed(1)+' كغ/م³ (نطاق المراجعة التقريبي 60–200، عدّله حسب نوع المنشأ)'})}
+  else if(V>0)G.push({s:'i',t:'الحديد غير مفصول عن الخرسانة ('+V.toFixed(1)+' م³ مسلحة): لا يمكن فحص النسبة، ويُفترض أنه ضمن سعر الخرسانة'});
+  if(unp)G.push({s:'i',t:unp+' بنداً بدون سعر إفرادي (نموذج غير مُسعَّر)'});
+  const n={p:0,w:0,e:0};items.forEach(t=>{n[t.st]++});
+  RP={label:label,items:items,G:G,n:n,overall:n.e?'يحتاج تصحيح':n.w?'يحتاج مراجعة':'ناجح'};
+  $('msg').textContent='';$('act').hidden=false;draw();
+}
+function draw(){
+  if(!RP)return;
+  const show=$('sp').checked,L=RP.items.filter(t=>show||t.st!=='p'),n=RP.n;
+  const cls=n.e?'er':n.w?'wn':'ok';
+  let html='<div class="card"><b>'+esc(RP.label)+'</b><div class="stats"><div><b>'+RP.items.length+'</b>بنود</div><div class="ok"><b>'+n.p+'</b>ناجح</div><div class="wn"><b>'+n.w+'</b>مراجعة</div><div class="er"><b>'+n.e+'</b>خطأ</div></div>الحالة: <b class="'+cls+'">'+RP.overall+'</b></div>';
+  html+='<div class="card">'+RP.G.map(g=>'<div class="note '+(g.s==='w'?'wn':'')+'">• '+esc(g.t)+'</div>').join('')+'</div>';
+  html+=L.map(t=>'<div class="it '+t.st+'"><b>'+esc(t.id||'؟')+'</b> <span class="mu">صف '+t.row+' · '+esc(t.u||'—')+' · '+esc(t.qr||'—')+'</span><div>'+esc(t.d.slice(0,90))+'</div>'+t.f.map(x=>'<div class="m '+x.s+'">'+(x.s==='e'?'✖':x.s==='w'?'⚠':'ℹ')+' '+esc(x.t)+'</div>'+(x.a&&x.s!=='i'?'<div class="mu">← الإجراء: '+esc(x.a)+'</div>':'')).join('')+'</div>').join('');
+  $('res').innerHTML=html;
+}
+function txt(){
+  let s='تقرير فحص BOQ — '+RP.label+'\nالحالة: '+RP.overall+' | بنود: '+RP.items.length+' | ناجح '+RP.n.p+' | مراجعة '+RP.n.w+' | خطأ '+RP.n.e+'\n';
+  RP.G.forEach(g=>{s+='• '+g.t+'\n'});
+  RP.items.filter(t=>t.st!=='p').forEach(t=>{
+    s+='\n['+(t.st==='e'?'خطأ':'مراجعة')+'] صف '+t.row+' — '+(t.id||'؟')+': '+t.d.slice(0,60)+'\n';
+    t.f.filter(x=>x.s!=='i').forEach(x=>{s+='   - '+x.t+(x.a?'\n     الإجراء: '+x.a:'')+'\n'});
+  });
+  return s;
+}
+function js(){
+  return JSON.stringify({file:RP.label,overall:RP.overall,counts:RP.n,notes:RP.G.map(g=>g.t),items:RP.items.map(t=>({row:t.row,id:t.id,unit:t.u,qty:t.qr,status:t.st==='e'?'ERROR':t.st==='w'?'REVIEW':'PASS',issues:t.f.map(x=>({issue:x.t,action:x.a||null}))}))},null,2);
+}
+async function cp(text){
+  const ta=$('cpbox');ta.hidden=false;ta.value=text;ta.select();
+  let ok=false;
+  try{await navigator.clipboard.writeText(text);ok=true}catch(e){try{ok=document.execCommand('copy')}catch(_){}}
+  $('cpmsg').textContent=ok?'تم النسخ':'تعذّر النسخ تلقائياً — اضغط مطولاً على المربع وانسخ يدوياً';
+}
+function parseText(s){const lines=s.replace(/\r/g,'').split('\n').filter(l=>l.trim()!=='');const dl=s.indexOf('\t')>=0?'\t':((s.match(/;/g)||[]).length>(s.match(/,/g)||[]).length?';':',');return lines.map(l=>{if(dl==='\t')return l.split('\t');const o=[];let cur='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===dl&&!q){o.push(cur);cur=''}else cur+=ch}o.push(cur);return o})}
+$('pb').onclick=()=>{const s=$('pt').value;if(!s.trim()){$('msg').textContent='الصق الجدول أولاً.';return}const rows=parseText(s);if(findHeader(rows)<0){$('msg').textContent='لم أجد في النص صف عناوين يحتوي «الكمية» و«الوحدة».';return}run(rows,'نص ملصوق')};
+$('sp').onchange=draw;
+$('c1').onclick=()=>RP&&cp(txt());
+$('c2').onclick=()=>RP&&cp(js());
+$('f').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;$('msg').textContent='جارٍ قراءة الملف…';
+  if(typeof XLSX==='undefined'){$('msg').textContent='تعذّر تحميل مكتبة قراءة Excel. جرّب CSV أو تحقق من الاتصال.';return}
+  try{
+    const wb=/\.csv$/i.test(f.name)?XLSX.read(await f.text(),{type:'string'}):XLSX.read(await f.arrayBuffer(),{type:'array'});
+    for(const nm of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,defval:null,raw:true});
+      if(findHeader(rows)>=0){run(rows,f.name+' / '+nm);return}
+    }
+    $('msg').textContent='لم أجد في أي ورقة صف عناوين يحتوي «الكمية» و«الوحدة».';
+  }catch(err){$('msg').textContent='تعذّرت قراءة الملف: '+err.message}
+};
+$('smp').onclick=()=>run([
+['رقم البند','البيان','الوحدة','الكمية','السعر الإفرادي','الإجمالي'],
+['C-01','خرسانة مسلحة للقواعد المنفصلة عيار 350 كجم/م3','م3','٣٤٫٤١',450,15484.5],
+['C-02','خرسانة مسلحة للأعمدة','م٣','13.02',480,6249.6],
+['C-02','خرسانة مسلحة للكمرات الأرضية','cum','6.02',480,2889.6],
+['C-03','خرسانة عادية أسفل القواعد','m3','8',300,2400],
+['C-04','فرش رمل نظيف','م3','10',100,1200],
+['S-01','حديد تسليح للقواعد والأعمدة','كغ','5.11',2800,14308],
+['S-02','حديد تسليح للبلاطات','طن','1.73',2800,4844],
+['B-01','مباني بلوك سمك 15 سم','م2','',55,0],
+['T-01','خزان أرضي سعة 100 م3 بعمق 3 م','م2','40',900,36000],
+['P-01','أعمال بالمقطوعية','',1,1000,1000],
+['','الإجمالي الكلي','','','',99999]
+],'عيّنة تجريبية (أخطاء مقصودة)');
+</script>
+</body>
+</html>
